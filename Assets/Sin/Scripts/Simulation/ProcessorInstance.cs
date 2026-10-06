@@ -32,7 +32,7 @@ namespace Factory.Simulation
         public int RecipeId
         {
             get => recipeId;
-            set { recipeId = value; BeltTopologyVersion.Bump(); }
+            set { if (recipeId == value) return; recipeId = value; BeltTopologyVersion.Bump(); }
         }
 
         public float SpeedMultiplier = 1f;
@@ -98,7 +98,7 @@ namespace Factory.Simulation
         public int SelectedFuelResourceId
         {
             get => selectedFuelResourceId;
-            set { selectedFuelResourceId = value; BeltTopologyVersion.Bump(); }
+            set { if (selectedFuelResourceId == value) return; selectedFuelResourceId = value; BeltTopologyVersion.Bump(); }
         }
 
         // footprint가 1칸보다 큰 기계(예: 2x2 합성기)의 포트 계산 기준. 어느 footprint 칸을

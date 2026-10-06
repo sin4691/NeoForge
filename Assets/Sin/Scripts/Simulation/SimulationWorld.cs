@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Factory.Data;
+using Unity.Profiling;
 
 namespace Factory.Simulation
 {
@@ -234,14 +235,20 @@ namespace Factory.Simulation
             RefundToCore(concreteId, concreteCost);
         }
 
+        // Profiler에서 Deep Profile 없이도 틱 비용을 시스템별로 나눠 보기 위한 마커.
+        private static readonly ProfilerMarker MinerMarker = new ProfilerMarker("Sim.Miner");
+        private static readonly ProfilerMarker ProcessorMarker = new ProfilerMarker("Sim.Processor");
+        private static readonly ProfilerMarker BeltMarker = new ProfilerMarker("Sim.Belt");
+        private static readonly ProfilerMarker RoutingMarker = new ProfilerMarker("Sim.Routing");
+
         public void Tick(float deltaSeconds)
         {
             Statistics.Advance(deltaSeconds);
-            minerSystem.Tick(deltaSeconds, Miners, Processors, CoreProcessorIndex, Database, Statistics);
-            processorSystem.Tick(deltaSeconds, Database, Processors, Statistics);
-            beltSystem.Tick(deltaSeconds, Segments, Processors, Database);
+            using (MinerMarker.Auto()) minerSystem.Tick(deltaSeconds, Miners, Processors, CoreProcessorIndex, Database, Statistics);
+            using (ProcessorMarker.Auto()) processorSystem.Tick(deltaSeconds, Database, Processors, Statistics);
+            using (BeltMarker.Auto()) beltSystem.Tick(deltaSeconds, Segments, Processors, Database);
             // 벨트가 이번 틱에 라우팅 노드 InputBuffer로 배달한 것을, 곧바로 출력 벨트에 분배/병합한다.
-            routingSystem.Tick(Processors, Segments, Database);
+            using (RoutingMarker.Auto()) routingSystem.Tick(Processors, Segments, Database);
         }
     }
 }

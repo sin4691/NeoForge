@@ -21,6 +21,8 @@ namespace Seo.UI
         private float nextStatusUpdate;
         private int lastInputReceiptVersion;
         private float lastInputReceiptTime = float.NegativeInfinity;
+        private bool positioned;
+        private Quaternion lastCameraRotation;
 
         private static readonly Vector2Int[] FourDirs =
         {
@@ -35,19 +37,36 @@ namespace Seo.UI
             instanceIndex = index;
             driver = simulationDriver;
             targetCamera = Camera.main;
+            // 수백 대가 같은 프레임에 0.2초 갱신을 몰아서 하지 않도록 시작 시점을 흩어 둔다.
+            nextStatusUpdate = Time.unscaledTime + Random.Range(0f, 0.2f);
+            positioned = false;
             Rebuild();
         }
 
+        // 배지 위치는 기계가 움직이거나(이동 도구) 카메라가 회전하거나 모델이 늦게 로드됐을 때만
+        // 바뀐다. 예전엔 기계마다 매 프레임 렌더러를 전부 모아 바운드를 다시 재고 배지를 다시 놓아서,
+        // 기계가 수백 대인 공장에서 이 LateUpdate 하나가 프레임의 10% 넘게 먹었다. 이제 그런 변화가
+        // 있을 때와 0.2초 상태 갱신 때만 다시 계산한다(모델 비동기 로드/포트 연결 변화는 이 주기로 반영).
         private void LateUpdate()
         {
             if (driver == null || driver.World == null) return;
             if (targetCamera == null) targetCamera = Camera.main;
-            if (Time.unscaledTime >= nextStatusUpdate)
+
+            bool periodic = Time.unscaledTime >= nextStatusUpdate;
+            if (periodic)
             {
                 UpdateStatus();
                 nextStatusUpdate = Time.unscaledTime + 0.2f;
             }
-            UpdatePositions();
+
+            Quaternion cameraRotation = targetCamera != null ? targetCamera.transform.rotation : Quaternion.identity;
+            if (periodic || !positioned || transform.hasChanged || cameraRotation != lastCameraRotation)
+            {
+                UpdatePositions();
+                positioned = true;
+                transform.hasChanged = false;
+                lastCameraRotation = cameraRotation;
+            }
         }
 
         private void OnDestroy()
