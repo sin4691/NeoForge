@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using Bae.Data;
 using Factory.Data;
 using Factory.Simulation;
 using NUnit.Framework;
-using UnityEngine;
 
 public class ProcessorSystemTests
 {
@@ -42,34 +42,49 @@ public class ProcessorSystemTests
         Assert.AreEqual(1, processor.InputBuffer[oreId]);
     }
 
+    [Test]
+    public void Tick_StopsConsumingInputs_WhenOutputBufferIsFull()
+    {
+        // 사용자 보고: 출력 연결이 없거나 막혀 OutputBuffer가 꽉 찼는데도 계속 가공해서
+        // 입력만 소비되고 산출물은 Capacity에서 잘려 증발했다.
+        var db = BuildFixtureDatabase(out int oreId, out int plateId, out int recipeId);
+        var processor = new ProcessorInstance(db.ResourceCount) { RecipeId = recipeId, Capacity = 5 };
+        processor.InputBuffer[oreId] = 100;
+        processor.OutputBuffer[plateId] = 5; // 이미 꽉 참
+
+        var system = new ProcessorSystem();
+        var processors = new List<ProcessorInstance> { processor };
+        for (int i = 0; i < 50; i++) system.Tick(1f, db, processors);
+
+        Assert.AreEqual(100, processor.InputBuffer[oreId], "출력이 꽉 찼으면 입력을 소비하지 않아야 함");
+        Assert.AreEqual(5, processor.OutputBuffer[plateId], "Capacity를 넘겨 증발하는 산출물이 없어야 함");
+        Assert.IsFalse(processor.IsProcessing);
+
+        // 출력을 비워주면 다시 정상 가공.
+        processor.OutputBuffer[plateId] = 0;
+        for (int i = 0; i < 3; i++) system.Tick(1f, db, processors);
+        Assert.Greater(processor.OutputBuffer[plateId], 0, "출력 자리가 나면 다시 가공해야 함");
+        Assert.Less(processor.InputBuffer[oreId], 100);
+    }
+
     private static GameDatabase BuildFixtureDatabase(out int oreId, out int plateId, out int recipeId)
     {
-        var ore = ScriptableObject.CreateInstance<ResourceDef>();
-        ore.resourceId = "IronOre";
+        var ore = new ItemData { itemID = "IronOre" };
+        var plate = new ItemData { itemID = "IronPlate" };
+        var machine = new MachineData { machineID = "Smelter" };
+        var recipe = new RecipeData
+        {
+            recipeID = "SmeltIron",
+            machineID = "Smelter",
+            timeToCraft = 1f,
+            inputItems = new List<string> { "IronOre", "IronOre" },
+            outputItems = new List<string> { "IronPlate" },
+        };
 
-        var plate = ScriptableObject.CreateInstance<ResourceDef>();
-        plate.resourceId = "IronPlate";
-
-        var machine = ScriptableObject.CreateInstance<MachineDef>();
-        machine.machineId = "Smelter";
-        machine.category = MachineCategory.Smelter;
-
-        var recipe = ScriptableObject.CreateInstance<RecipeDef>();
-        recipe.recipeId = "SmeltIron";
-        recipe.inputs = new[] { new RecipeIngredient { resource = ore, amount = 2 } };
-        recipe.outputs = new[] { new RecipeIngredient { resource = plate, amount = 1 } };
-        recipe.processSeconds = 1f;
-        recipe.requiredCategory = MachineCategory.Smelter;
-
-        var db = GameDatabase.Build(new[] { ore, plate }, new[] { recipe }, new[] { machine });
+        var db = GameDatabase.Build(new[] { ore, plate }, new[] { machine }, new[] { recipe });
         oreId = db.GetResourceId("IronOre");
         plateId = db.GetResourceId("IronPlate");
         recipeId = db.GetRecipeId("SmeltIron");
-
-        Object.DestroyImmediate(ore);
-        Object.DestroyImmediate(plate);
-        Object.DestroyImmediate(machine);
-        Object.DestroyImmediate(recipe);
 
         return db;
     }

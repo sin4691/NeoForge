@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa4a62007ebe06c4f8a2aca0aa40ee80, type: 3}
+  m_Name: IronBeam
+  m_EditorClassIdentifier: Bae::Bae.SO.ItemSO
+  itemID: IronBeam
+  itemName: "\uCCA0\uBE54"
+  description: "Mk.2 \uBCA8\uD2B8, \uB2E8\uB2E8\uD55C \uC778\uD504\uB77C\uC6A9\uC73C\uB85C
+    \uC11D\uD0C4\uACFC \uCCA0\uD310\uC744 \uD569\uC131\uD558\uBA74 \uB098\uC640\uC694"
+  iconName: Icon_IronBeam
+  prefabName: Prefab_Item_IronBeam

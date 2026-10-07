@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 347f42cc08904f4ba04e607311162126, type: 3}
+  m_Name: PowerStructureVisualCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Choi.SaveLoad.PowerStructureVisualCatalog
+  generatorPrefab: {fileID: 2685274027771641398, guid: ff0a1e6aae57c994a91e6ff774fc2a48, type: 3}
+  transmissionTowerPrefab: {fileID: 5126828214095455540, guid: 76b3371152226df4591d974b2335afc3, type: 3}

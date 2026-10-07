@@ -13,7 +13,20 @@ namespace Factory.Building
         private void Awake()
         {
             if (button == null) button = GetComponent<Button>();
-            if (button != null) button.onClick.AddListener(() => machineTool.RotateFacing());
+            if (button != null) button.onClick.AddListener(RotatePlacement);
+        }
+
+        private void RotatePlacement()
+        {
+            // FactoryPrototype 어셈블리는 전력 시스템 어셈블리를 직접 참조하지 않으므로,
+            // 발전기 도구가 켜져 있을 때만 이름 기반으로 회전 요청을 전달한다.
+            foreach (MonoBehaviour behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+            {
+                if (behaviour.GetType().FullName != "Choi.SaveLoad.PowerBuildController") continue;
+                var method = behaviour.GetType().GetMethod("RotateGeneratorFacing");
+                if (method?.Invoke(behaviour, null) is bool rotated && rotated) return;
+            }
+            machineTool?.RotateFacing();
         }
     }
 }

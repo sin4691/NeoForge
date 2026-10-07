@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa4a62007ebe06c4f8a2aca0aa40ee80, type: 3}
+  m_Name: HighCapacityBattery
+  m_EditorClassIdentifier: Bae::Bae.SO.ItemSO
+  itemID: HighCapacityBattery
+  itemName: "\uB300\uC6A9\uB7C9 \uBC30\uD130\uB9AC"
+  description: "\uB300\uADDC\uBAA8 \uC804\uB825\uB9DD \uBC0F \uD50C\uB77C\uC988\uB9C8
+    \uCF54\uC5B4 \uC7AC\uB8CC\uB85C \uC5D0\uB108\uC9C0 \uC140\uACFC \uCCA0\uD310\uC744
+    \uD569\uCE58\uBA74 \uB098\uC640\uC694\n\uB4C0\uB77C\uC140 "
+  iconName: Icon_HighCapacityBattery
+  prefabName: Prefab_Item_HighCapacityBattery

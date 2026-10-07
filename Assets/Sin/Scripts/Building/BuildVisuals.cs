@@ -10,8 +10,18 @@ namespace Factory.Building
     {
         private static readonly Dictionary<Color, Material> materialCache = new Dictionary<Color, Material>();
 
-        public static GameObject CreateStrip(Vector3 from, Vector3 to, float thickness, Color color, Transform parent, bool withCollider = false, GameObject prefab = null)
+        // prefab 이 주어지면 항상 그 실제 모양(눕힌 Quad)으로 그린다 — 미리보기도 "실제로 놓일 모양"이어야
+        // 유효/무효 색이 자연스럽게 보이기 때문(엉뚱한 큐브 미리보기 X).
+        // keepPrefabMaterial=true 면 prefab 의 머티리얼(컨베이어 텍스처)을 그대로 두고 길이만큼 타일링만
+        // 한다(확정된 벨트). false 면 그 위에 유효/무효 색을 반투명으로 덮어 칠한다(미리보기).
+        public static GameObject CreateStrip(Vector3 from, Vector3 to, float thickness, Color color, Transform parent,
+            bool withCollider = false, GameObject prefab = null, bool keepPrefabMaterial = false, float flatSurfaceY = 0.06f)
         {
+            // prefab 이 있으면(미리보기든 확정이든) 실제 모양(바닥에 눕힌 Quad)으로 그린다 — 미리보기가
+            // 엉뚱한 큐브가 아니라 "실제로 놓일 모양 + 유효/무효 색 반투명"으로 보이게 하기 위함.
+            // prefab 자체가 없을 때(스트립 프리팹 미할당)만 옛 큐브 폴백을 쓴다.
+            bool flat = prefab != null;
+
             GameObject go;
             if (prefab != null)
             {
@@ -25,22 +35,41 @@ namespace Factory.Building
 
             Vector3 mid = (from + to) * 0.5f;
             float length = Mathf.Max(Vector3.Distance(from, to), 0.001f);
-            Quaternion rotation = Quaternion.LookRotation(to - from);
-
             go.transform.SetParent(parent, true);
-            go.transform.position = mid;
+
+            if (flat)
+            {
+                Vector3 travel = to - from;
+                float yaw = Mathf.Atan2(travel.x, travel.z) * Mathf.Rad2Deg;
+                go.transform.position = new Vector3(mid.x, flatSurfaceY, mid.z); // 코너 Quad 와 같은 높이
+                go.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * go.transform.rotation; // 프리팹 눕힌 자세 유지 + 진행방향
+                // 폭(thickness)은 코너 텍스처 안의 "벨트 띠" 폭과 같아야 이음새에서 안 잘린다.
+                // 둘 다 칸 중심선 기준 centered 이므로 이 폭만 맞추면 정렬됨.
+                go.transform.localScale = new Vector3(thickness, length, 1f);
+
+                if (keepPrefabMaterial)
+                {
+                    var renderer = go.GetComponentInChildren<Renderer>();
+                    if (renderer != null && renderer.sharedMaterial != null && renderer.sharedMaterial.mainTexture != null)
+                    {
+                        var mat = renderer.material; // 스트립마다 개별 인스턴스(타일링이 서로 안 섞이게)
+                        mat.mainTextureScale = new Vector2(mat.mainTextureScale.x, Mathf.Max(1f, Mathf.Round(length)));
+                    }
+                }
+                else
+                {
+                    // 미리보기: 실제 텍스처(모양)는 유지하고 색조만 유효/무효 색으로 씌운다.
+                    TintPreserveShape(go, color);
+                }
+                return go;
+            }
+
+            Quaternion rotation = Quaternion.LookRotation(to - from);
+            go.transform.position = mid + Vector3.up * (thickness * 0.2f); // 큐브 밑면이 바닥에 닿게
             go.transform.rotation = rotation;
             go.transform.localScale = new Vector3(thickness, thickness * 0.4f, length);
-
             Colorize(go, color);
-
-            // 방향 화살표는 스트립(go)의 자식으로 붙이되, 월드 좌표/스케일을 먼저 확정한 뒤
-            // worldPositionStays=true로 재부모화한다 — 스트립은 (thickness, thickness*0.4,
-            // length)로 비균일 스케일돼 있어서 그냥 자식으로 붙이면 화살표가 길이에 따라
-            // 늘어나거나 찌그러지는데, 이렇게 하면 유니티가 로컬 스케일을 알아서 보정해줘서
-            // 항상 일정한 절대 크기로 보이면서도 스트립이 파괴될 때 같이 정리된다.
-            AttachDirectionArrow(mid + Vector3.up * (thickness * 0.4f * 0.5f + 0.03f), rotation, go.transform);
-
+            AttachDirectionArrow(go.transform.position + Vector3.up * (thickness * 0.2f + 0.03f), rotation, go.transform);
             return go;
         }
 
@@ -88,11 +117,60 @@ namespace Factory.Building
             return go;
         }
 
-        public static void Colorize(GameObject go, Color color)
-        {
-            var renderer = go.GetComponent<Renderer>();
-            if (renderer == null) return;
+        public static void Colorize(GameObject go, Color color) => Colorize(go.GetComponent<Renderer>(), color);
 
+        // Colorize와 달리 머티리얼을 통째로 새 셰이더로 갈지 않는다 — 원본 셰이더/텍스처는 그대로
+        // 두고 _BaseColor(또는 _Color)만 틴트로 바꾼다. 실제 배치된 오브젝트와 "같은 셰이더"를
+        // 그대로 쓰는 거라 알파(모양/투명도)는 항상 원본과 똑같이 맞는다 — 대신 원본 색이 진하면
+        // 틴트와 살짝 섞여 보일 수 있다(커스텀 실루엣 셰이더로 완전 단색화를 시도했으나 평면 Quad
+        // 에서 알파를 못 읽는 문제가 있어 폐기했다).
+        //
+        // 두 가지를 다 처리해야 "일부만 안 바뀌는" 문제가 없다:
+        //  1) GetComponentsInChildren(true) — 파츠가 여러 개인 모델(자식 렌더러 여럿)
+        //  2) sharedMaterials(복수) — 렌더러 하나가 머티리얼을 여러 슬롯(서브메시별)에 물고 있는 경우.
+        //     renderer.material(단수)은 슬롯 0만 바꾸고 나머지 슬롯은 원본 그대로 남는다 — 실제로
+        //     겪은 버그(계기판 등 일부만 원래 색으로 남음).
+        public static void TintPreserveShape(GameObject root, Color tint)
+        {
+            if (root == null) return;
+
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null) continue;
+
+                Material[] shared = r.sharedMaterials;
+                if (shared == null || shared.Length == 0) continue;
+
+                var replaced = new Material[shared.Length];
+                for (int m = 0; m < shared.Length; m++)
+                {
+                    Material original = shared[m];
+                    if (original == null) continue;
+
+                    var mat = new Material(original); // 슬롯별 인스턴스 — 원본 셰이더/텍스처 그대로
+                    if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+                    else if (mat.HasProperty("_Color")) mat.color = tint;
+                    // 원본 머티리얼이 Alpha Clipping(_AlphaClip=1)을 같이 쓰면, 클리핑 판정이
+                    // "텍스처 알파 × _BaseColor 알파 > _Cutoff" 로 계산된다. 틴트에 반투명값(알파<1)을
+                    // 주면 이 곱셈 때문에 원래는 다 보여야 할 픽셀까지 컷오프 밑으로 떨어져 통째로
+                    // 잘려나간다(분류기/합류기가 희미하게만 보이던 원인, 벨트 코너 모양이 어긋나던 원인).
+                    // 클리핑은 "텍스처 자체 모양"만 보고 판정하도록 컷오프를 거의 0으로 낮추고,
+                    // 반투명 느낌은 블렌드(_BaseColor 알파)만으로 내게 분리한다.
+                    if (mat.HasProperty("_AlphaClip") && mat.GetFloat("_AlphaClip") > 0f && mat.HasProperty("_Cutoff"))
+                        mat.SetFloat("_Cutoff", 0.01f);
+                    replaced[m] = mat;
+                }
+                r.materials = replaced; // 슬롯 전체 한 번에 교체
+            }
+        }
+
+        // GetComponent 없이 이미 갖고 있는 Renderer 참조로 바로 칠한다 — 매 프레임 여러 번
+        // 호출되는 곳(예: BeltItemRenderer)에서 GetComponent 비용을 반복하지 않기 위함.
+        public static void Colorize(Renderer renderer, Color color)
+        {
+            if (renderer == null) return;
             renderer.sharedMaterial = GetOrCreateMaterial(color);
         }
 

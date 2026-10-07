@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 507ac1816e933e2489e0b5952cec4d6e, type: 3}
+  m_Name: SeoUITheme
+  m_EditorClassIdentifier: 
+  PanelSprite: {fileID: 21300000, guid: c141059abc6ad7d4b887f3efec8e78c0, type: 3}
+  ButtonSprite: {fileID: 21300000, guid: 4fd9a3d7e38907a4abdcbefb87aa0b65, type: 3}
+  ButtonPressedSprite: {fileID: 21300000, guid: 623fa466953b086428cd14139130ac69, type: 3}
+  BeltTexture: {fileID: 2800000, guid: 1dc6704efde7b4d48847dd388b1b5b7b, type: 3}
+  SplitterTexture: {fileID: 2800000, guid: 24af1b16b7e0f9244b7b5d08ddbce328, type: 3}
+  MergerTexture: {fileID: 2800000, guid: aa784449a4e6f444b8d5a601c95bdc93, type: 3}
+  CrossBeltTexture: {fileID: 2800000, guid: 167e7acc7ebba694089fe4a3e4eba669, type: 3}
+  GeneratorPreviewPrefab: {fileID: 2685274027771641398, guid: ff0a1e6aae57c994a91e6ff774fc2a48, type: 3}
+  TowerPreviewPrefab: {fileID: 5126828214095455540, guid: 76b3371152226df4591d974b2335afc3, type: 3}
+  FontAsset: {fileID: 11400000, guid: aa31c6feac89a164fa5da8c52593b6c7, type: 2}
+  ScreenPanel: {r: 0.025, g: 0.055, b: 0.09, a: 0.96}
+  Card: {r: 0.04, g: 0.1, b: 0.15, a: 0.96}
+  Primary: {r: 0, g: 0.82, b: 0.95, a: 1}
+  Secondary: {r: 0.12, g: 0.42, b: 0.68, a: 1}
+  Muted: {r: 0.47, g: 0.62, b: 0.7, a: 1}
+  Text: {r: 0.93, g: 0.98, b: 1, a: 1}
+  Danger: {r: 0.95, g: 0.24, b: 0.22, a: 1}
+  Success: {r: 0.2, g: 0.88, b: 0.58, a: 1}
+  Warning: {r: 1, g: 0.68, b: 0.12, a: 1}

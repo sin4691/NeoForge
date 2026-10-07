@@ -1,0 +1,229 @@
+{
+    "recipes": [
+        {
+            "recipeID": "FormCopperPlate",
+            "machineID": "Former",
+            "timeToCraft": 3.0,
+            "inputItems": [
+                "CopperIngot",
+                "CopperIngot",
+                "CopperIngot"
+            ],
+            "outputItems": [
+                "CopperPlate",
+                "CopperPlate"
+            ]
+        },
+        {
+            "recipeID": "FormCopperWire",
+            "machineID": "Former",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "CopperIngot"
+            ],
+            "outputItems": [
+                "CopperWire",
+                "CopperWire"
+            ]
+        },
+        {
+            "recipeID": "FormIronIngot",
+            "machineID": "Former",
+            "timeToCraft": 3.0,
+            "inputItems": [
+                "IronIngot",
+                "IronIngot",
+                "IronIngot"
+            ],
+            "outputItems": [
+                "IronPlate",
+                "IronPlate"
+            ]
+        },
+        {
+            "recipeID": "FormQuartzPlate",
+            "machineID": "Former",
+            "timeToCraft": 3.0,
+            "inputItems": [
+                "RefinedQuartz",
+                "RefinedQuartz",
+                "RefinedQuartz"
+            ],
+            "outputItems": [
+                "QuartzPlate",
+                "QuartzPlate"
+            ]
+        },
+        {
+            "recipeID": "FormUraniumPlate",
+            "machineID": "Former",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "RefinedUranium",
+                "RefinedUranium",
+                "RefinedUranium"
+            ],
+            "outputItems": [
+                "UraniumPlate"
+            ]
+        },
+        {
+            "recipeID": "ProcessCarbonNanotube",
+            "machineID": "ProcessingMachine",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "CoalBundle",
+                "QuartzPlate",
+                "UraniumPlate"
+            ],
+            "outputItems": [
+                "CarbonNanotube"
+            ]
+        },
+        {
+            "recipeID": "ProcessCircuit",
+            "machineID": "ProcessingMachine",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "CopperPlate",
+                "CopperWire",
+                "GoldIngot"
+            ],
+            "outputItems": [
+                "Circuit"
+            ]
+        },
+        {
+            "recipeID": "ProcessPlasmaCore",
+            "machineID": "ProcessingMachine",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "HighCapacityBattery",
+                "CarbonNanotube",
+                "UraniumPlate"
+            ],
+            "outputItems": [
+                "PlasmaCore"
+            ]
+        },
+        {
+            "recipeID": "SmeltCoalBundle",
+            "machineID": "Smelter",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "Coal"
+            ],
+            "outputItems": [
+                "CoalBundle"
+            ]
+        },
+        {
+            "recipeID": "SmeltCopperIngot",
+            "machineID": "Smelter",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "CopperOre"
+            ],
+            "outputItems": [
+                "CopperIngot"
+            ]
+        },
+        {
+            "recipeID": "SmeltGoldIngot",
+            "machineID": "Smelter",
+            "timeToCraft": 4.0,
+            "inputItems": [
+                "GoldOre"
+            ],
+            "outputItems": [
+                "GoldIngot"
+            ]
+        },
+        {
+            "recipeID": "SmeltIronIngot",
+            "machineID": "Smelter",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "IronOre"
+            ],
+            "outputItems": [
+                "IronIngot"
+            ]
+        },
+        {
+            "recipeID": "SmeltRefinedQuartz",
+            "machineID": "Smelter",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "QuartzOre"
+            ],
+            "outputItems": [
+                "RefinedQuartz"
+            ]
+        },
+        {
+            "recipeID": "SmeltRefinedUranium",
+            "machineID": "Smelter",
+            "timeToCraft": 2.0,
+            "inputItems": [
+                "UraniumOre"
+            ],
+            "outputItems": [
+                "RefinedUranium"
+            ]
+        },
+        {
+            "recipeID": "SynthesizEnergyCell",
+            "machineID": "Synthesizer",
+            "timeToCraft": 3.0,
+            "inputItems": [
+                "CopperWire",
+                "CopperWire",
+                "RefinedQuartz"
+            ],
+            "outputItems": [
+                "EnergyCell"
+            ]
+        },
+        {
+            "recipeID": "SynthesizGear",
+            "machineID": "Synthesizer",
+            "timeToCraft": 3.0,
+            "inputItems": [
+                "IronPlate",
+                "IronPlate",
+                "CopperIngot"
+            ],
+            "outputItems": [
+                "Gear"
+            ]
+        },
+        {
+            "recipeID": "SynthesizHighCapacityBattery",
+            "machineID": "Synthesizer",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "EnergyCell",
+                "EnergyCell",
+                "IronPlate",
+                "IronPlate"
+            ],
+            "outputItems": [
+                "HighCapacityBattery"
+            ]
+        },
+        {
+            "recipeID": "SynthesizIronBeam",
+            "machineID": "Synthesizer",
+            "timeToCraft": 6.0,
+            "inputItems": [
+                "IronPlate",
+                "IronPlate",
+                "CoalBundle"
+            ],
+            "outputItems": [
+                "IronBeam"
+            ]
+        }
+    ]
+}

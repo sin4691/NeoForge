@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Bae.Data;
 using Factory.Building;
 using Factory.Data;
 using Factory.Simulation;
@@ -10,9 +12,19 @@ using UnityEngine;
 //
 // 채굴기는 입출력 포트가 없다(원격 전송, MinerSystem 참고) — 그래서 벨트 체인 자체를
 // 검증하는 테스트들은 "항상 존재하는 저장고"인 코어(UniversalPorts Processor)를 소스로 쓴다.
+//
+// 기계/자원/레시피 데이터는 Bae님의 데이터 클래스(ItemData/MachineData/RecipeData, 평범한
+// C# 클래스)로 직접 구성한다 — ScriptableObject가 아니라서 CreateInstance/DestroyImmediate가
+// 필요 없다.
 public class BuildToolsIntegrationTests
 {
     private static readonly Vector2 GhostScreenOffset = new Vector2(0f, 150f);
+
+    // 채굴기는 MachineGhostTool이 실제 machineID "Miner"로만 알아본다(광맥 확인/원격 전송) —
+    // 다른 이름을 쓰면 일반 기계로 지어져서 채굴 관련 테스트가 엉뚱하게 깨진다.
+    private const string MinerMachineId = "Miner";
+    private const string ProcessorMachineId = "TestProcessor";
+    private const string AssemblerMachineId = "TestAssembler";
 
     private GameObject cameraGO;
     private GameObject driverGO;
@@ -22,75 +34,52 @@ public class BuildToolsIntegrationTests
     private BeltDragTool beltTool;
     private MachineGhostTool machineTool;
 
-    private ResourceDef oreDef;
-    private ResourceDef outputDef;
-    private ResourceDef gearDef;
-    private MachineDef minerDef;
-    private MachineDef processorDef;
-    private MachineDef assemblerDef;
-    private RecipeDef recipeDef;
-    private RecipeDef gearRecipeDef;
     private OreDepositDef oreDepositDef;
 
     [SetUp]
     public void SetUp()
     {
-        oreDef = ScriptableObject.CreateInstance<ResourceDef>();
-        oreDef.resourceId = "TestOre";
+        var oreItem = new ItemData { itemID = "TestOre" };
+        var outputItem = new ItemData { itemID = "TestOutput" };
+        var gearItem = new ItemData { itemID = "TestGear" };
 
-        outputDef = ScriptableObject.CreateInstance<ResourceDef>();
-        outputDef.resourceId = "TestOutput";
-
-        gearDef = ScriptableObject.CreateInstance<ResourceDef>();
-        gearDef.resourceId = "TestGear";
-
-        minerDef = ScriptableObject.CreateInstance<MachineDef>();
-        minerDef.machineId = "TestMiner";
-        minerDef.category = MachineCategory.Miner;
+        var minerMachine = new MachineData { machineID = MinerMachineId, gridWidth = 1, gridHeight = 1 };
+        var processorMachine = new MachineData { machineID = ProcessorMachineId, gridWidth = 1, gridHeight = 1 };
+        // 조립기는 2x2에 입력 포트 2칸/출력 포트 2칸 — 서로 다른 두 자원을 각각 다른 벨트로 받는다.
+        var assemblerMachine = new MachineData { machineID = AssemblerMachineId, gridWidth = 2, gridHeight = 2 };
 
         // 채굴기는 이제 하나뿐이고, 뭘 캐는지는 땅 위 광물 노드가 정한다(PlaceOreDeposit 참고).
         oreDepositDef = ScriptableObject.CreateInstance<OreDepositDef>();
         oreDepositDef.depositId = "TestOreDeposit";
-        oreDepositDef.resource = oreDef;
+        oreDepositDef.resourceId = "TestOre";
 
-        processorDef = ScriptableObject.CreateInstance<MachineDef>();
-        processorDef.machineId = "TestProcessor";
-        processorDef.category = MachineCategory.Smelter;
-
-        assemblerDef = ScriptableObject.CreateInstance<MachineDef>();
-        assemblerDef.machineId = "TestAssembler";
-        assemblerDef.category = MachineCategory.Assembler;
-        // 조립기는 2x2에 입력 포트 2칸/출력 포트 2칸 — 서로 다른 두 자원을 각각 다른 벨트로 받는다.
-        assemblerDef.footprint = new Vector2Int(2, 2);
-
-        recipeDef = ScriptableObject.CreateInstance<RecipeDef>();
-        recipeDef.recipeId = "TestRecipe";
-        recipeDef.inputs = new[] { new RecipeIngredient { resource = oreDef, amount = 1 } };
         // 출력을 둬서 "누적 생산량"으로 아이템이 끝까지 도착했는지 명확하게 판정한다
         // (InputBuffer는 소비되는 순간 0으로 돌아가서 타이밍에 따라 애매해짐).
-        recipeDef.outputs = new[] { new RecipeIngredient { resource = outputDef, amount = 1 } };
-        recipeDef.processSeconds = 0.1f;
-        recipeDef.requiredCategory = MachineCategory.Smelter;
+        var recipe = new RecipeData
+        {
+            recipeID = "TestRecipe",
+            machineID = ProcessorMachineId,
+            timeToCraft = 0.1f,
+            inputItems = new List<string> { "TestOre" },
+            outputItems = new List<string> { "TestOutput" },
+        };
 
         // 3단계 트리(광석 -> 철판 역할의 TestOutput -> 기어) 검증용 레시피 — 조립기답게
         // 서로 다른 두 자원(제련로 출력 TestOutput + 광석 TestOre 직접)을 동시에 소비한다.
-        gearRecipeDef = ScriptableObject.CreateInstance<RecipeDef>();
-        gearRecipeDef.recipeId = "TestGearRecipe";
-        gearRecipeDef.inputs = new[]
+        var gearRecipe = new RecipeData
         {
-            new RecipeIngredient { resource = outputDef, amount = 1 },
-            new RecipeIngredient { resource = oreDef, amount = 1 },
+            recipeID = "TestGearRecipe",
+            machineID = AssemblerMachineId,
+            timeToCraft = 0.1f,
+            inputItems = new List<string> { "TestOutput", "TestOre" },
+            outputItems = new List<string> { "TestGear" },
         };
-        gearRecipeDef.outputs = new[] { new RecipeIngredient { resource = gearDef, amount = 1 } };
-        gearRecipeDef.processSeconds = 0.1f;
-        gearRecipeDef.requiredCategory = MachineCategory.Assembler;
 
         var db = GameDatabase.Build(
-            new[] { oreDef, outputDef, gearDef },
-            new[] { recipeDef, gearRecipeDef },
-            new[] { minerDef, processorDef, assemblerDef },
+            new[] { oreItem, outputItem, gearItem },
+            new[] { minerMachine, processorMachine, assemblerMachine },
+            new[] { recipe, gearRecipe },
             new[] { oreDepositDef });
-        db.MakeGlobal();
 
         cameraGO = new GameObject("TestCamera");
         cam = cameraGO.AddComponent<Camera>();
@@ -101,6 +90,7 @@ public class BuildToolsIntegrationTests
 
         driverGO = new GameObject("TestDriver");
         driver = driverGO.AddComponent<SimulationDriver>();
+        driver.Initialize(db); // DataManager/JSON 없이 이 테스트가 직접 구성한 db를 그대로 씀.
 
         toolsGO = new GameObject("TestTools");
         beltTool = toolsGO.AddComponent<BeltDragTool>();
@@ -115,15 +105,14 @@ public class BuildToolsIntegrationTests
         Object.DestroyImmediate(cameraGO);
         Object.DestroyImmediate(driverGO);
         Object.DestroyImmediate(toolsGO);
-        Object.DestroyImmediate(oreDef);
-        Object.DestroyImmediate(outputDef);
-        Object.DestroyImmediate(gearDef);
-        Object.DestroyImmediate(minerDef);
-        Object.DestroyImmediate(processorDef);
-        Object.DestroyImmediate(assemblerDef);
-        Object.DestroyImmediate(recipeDef);
-        Object.DestroyImmediate(gearRecipeDef);
         Object.DestroyImmediate(oreDepositDef);
+
+        // 벨트 비주얼 루트는 씬 최상위에 만들어져서 위 오브젝트들과 같이 안 지워진다 — 남겨두면 다음
+        // 테스트에서 같은 이름(Belt_N)을 가진 옛 오브젝트가 섞여 이름 기반 확인이 엉뚱하게 깨진다.
+        foreach (var go in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (go != null && go.transform.parent == null && go.name.StartsWith("Belt_")) Object.DestroyImmediate(go);
+        }
     }
 
     private Vector2 ScreenPosForCell(Vector2Int cell)
@@ -131,20 +120,20 @@ public class BuildToolsIntegrationTests
         return cam.WorldToScreenPoint(GridUtility.CellToWorldCenter(cell, 0.5f));
     }
 
-    private void PlaceMachine(MachineDef def, Vector2Int cell)
+    private void PlaceMachine(string machineId, Vector2Int cell)
     {
         // 채굴기는 이제 광물 노드가 있는 칸에만 지을 수 있다 — 테스트에서 매번 따로 챙기는
         // 대신, 채굴기를 놓을 때 그 칸에 자동으로 노드를 깔아준다(테스트 의도는 "채굴기가
         // 정상 동작하는가"이지 "노드 배치 자체"가 아니므로).
-        if (def.category == MachineCategory.Miner)
+        if (machineId == MinerMachineId)
         {
             PlaceOreDeposit(cell);
         }
 
-        machineTool.SelectMachine(def);
+        machineTool.SelectMachine(machineId);
         machineTool.OnPressBegin(ScreenPosForCell(cell) - GhostScreenOffset);
         bool confirmed = machineTool.Confirm();
-        Assert.IsTrue(confirmed, $"{def.machineId} 배치가 {cell}에서 실패함");
+        Assert.IsTrue(confirmed, $"{machineId} 배치가 {cell}에서 실패함");
     }
 
     private void PlaceOreDeposit(Vector2Int cell)
@@ -179,16 +168,69 @@ public class BuildToolsIntegrationTests
         return core;
     }
 
+    // 벨트는 기계 칸에서 시작/통과할 수 없다(BeltDragTool.IsMachineCell) — 예전 시나리오처럼
+    // 기계 칸을 양 끝으로 넘겨도 실제 사용자 조작과 같게 기계 옆 칸부터 시작/끝나게 잘라낸다.
     private void DragBelt(Vector2Int from, Vector2Int to)
     {
+        var raw = BeltPathBuilder.BuildOrthogonalPath(new[] { from, to });
+        while (raw.Count > 0 && IsMachineCell(raw[0])) raw.RemoveAt(0);
+        while (raw.Count > 0 && IsMachineCell(raw[raw.Count - 1])) raw.RemoveAt(raw.Count - 1);
+        if (raw.Count == 0) return;
+
+        from = raw[0];
+        to = raw[raw.Count - 1];
         beltTool.OnPressBegin(ScreenPosForCell(from));
         beltTool.OnDrag(ScreenPosForCell(to));
         beltTool.OnReleased(ScreenPosForCell(to));
     }
 
+    private bool IsMachineCell(Vector2Int cell) =>
+        driver.World.Grid.TryGetOccupant(cell, out var occupant) && occupant.Type != CellOccupantType.Belt;
+
     private void RunTicks(int count, float delta = 0.05f)
     {
         for (int i = 0; i < count; i++) driver.World.Tick(delta);
+    }
+
+    [Test]
+    public void ReturnBeltVisual_PoolsAndReusesTheSameGameObject_WhenANewBeltIsPlaced()
+    {
+        // 사용자 지적: "풀만 하고 꺼내서 쓰지는 않는 거 아니냐" — 벨트를 철거하면 GameObject를
+        // 비활성화해서 풀에 넣어두기만 하고, 새 벨트를 놓을 때 정말로 그 오브젝트를 재사용하는지
+        // (그냥 계속 새로 만들기만 하는 건 아닌지) 인스턴스 identity로 직접 확인한다.
+        // 빈 땅에서 시작하는 벨트는 이제 설치가 거부되므로(시작점이 출력원이어야 함), 양쪽 벨트
+        // 모두 코어 옆에서 시작시킨다.
+        PlaceCoreLike(new Vector2Int(-1, 0), Vector2Int.one);
+        PlaceCoreLike(new Vector2Int(4, 0), Vector2Int.one);
+        // 오브젝트는 GameObject.Find 대신 도구의 레지스트리(TryGetBeltVisual)로 찾는다 — Find는 비활성
+        // (풀에 반납된) 오브젝트를 못 찾고, 이름이 같은 다른 오브젝트를 잘못 집을 수도 있다.
+        int countBefore = driver.World.Segments.Count;
+        DragBelt(new Vector2Int(0, 0), new Vector2Int(1, 0));
+        Assert.Greater(driver.World.Segments.Count, countBefore, "코어 옆에서 시작한 벨트는 설치되어야 함");
+        int firstId = driver.World.Segments[driver.World.Segments.Count - 1].Id;
+        Assert.IsTrue(beltTool.TryGetBeltVisual(firstId, out var firstVisual), "벨트를 놓으면 비주얼이 등록되어야 함");
+        int pooledInstanceId = firstVisual.GetInstanceID();
+
+        // DemolishTool.Confirm이 벨트 철거 시 실제로 부르는 것과 같은 호출.
+        beltTool.ReturnBeltVisual(firstId);
+        driver.World.RemoveSegment(firstId);
+
+        Assert.IsFalse(beltTool.TryGetBeltVisual(firstId, out _), "반납된 벨트는 레지스트리에서 빠져야 함");
+        Assert.IsFalse(firstVisual.activeSelf, "반납된 벨트는 비활성 상태로 풀에서 대기해야 함");
+        Assert.AreEqual("Belt_Pooled", firstVisual.name);
+
+        int secondStart = driver.World.Segments.Count;
+        DragBelt(new Vector2Int(5, 0), new Vector2Int(6, 0)); // 전혀 다른 위치에 새 벨트.
+        Assert.Greater(driver.World.Segments.Count, secondStart, "두 번째 벨트도 설치되어야 함");
+
+        // 새 드래그로 생긴 세그먼트 중 하나가 풀에 있던 바로 그 오브젝트를 재사용해야 한다.
+        bool reused = false;
+        for (int id = secondStart; id < driver.World.Segments.Count; id++)
+        {
+            if (beltTool.TryGetBeltVisual(id, out var visual) && visual.GetInstanceID() == pooledInstanceId) reused = true;
+        }
+        Assert.IsTrue(reused, "새 벨트가 풀에 반납된 오브젝트를 재사용해야 함(새로 또 만들면 안 됨)");
+        Assert.IsTrue(firstVisual.activeSelf, "재사용된 오브젝트는 다시 활성화되어야 함");
     }
 
     [Test]
@@ -201,7 +243,7 @@ public class BuildToolsIntegrationTests
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(2, 0)); // 코어 옆에서 (2,0)까지 뻗어놓고 방치(막다른 길)
 
-        PlaceMachine(processorDef, new Vector2Int(3, 0)); // 벨트 끝(2,0) 바로 옆에 나중에 배치
+        PlaceMachine(ProcessorMachineId, new Vector2Int(3, 0)); // 벨트 끝(2,0) 바로 옆에 나중에 배치
         AssignRecipeToNewestProcessor();
 
         RunTicks(400); // 20초 분량
@@ -224,7 +266,7 @@ public class BuildToolsIntegrationTests
         // 조립기를 (6,0)에 놓을 계획 -> Facing 기본값(1,0)이면 입력 포트는 (5,0),(5,1).
         DragBelt(new Vector2Int(0, 0), new Vector2Int(5, 0)); // 입력 포트 1(철판 자리) 미리 뻗어둠
 
-        PlaceMachine(assemblerDef, new Vector2Int(6, 0));
+        PlaceMachine(AssemblerMachineId, new Vector2Int(6, 0));
 
         var lastSegment = driver.World.Segments[driver.World.Segments.Count - 1];
         int assemblerIndex = driver.World.Processors.Count - 1;
@@ -239,7 +281,7 @@ public class BuildToolsIntegrationTests
         var core = PlaceCoreLike(new Vector2Int(0, 0), new Vector2Int(1, 1));
         core.InputBuffer[driver.World.Database.GetResourceId("TestOre")] = 20;
 
-        PlaceMachine(processorDef, new Vector2Int(6, 0));
+        PlaceMachine(ProcessorMachineId, new Vector2Int(6, 0));
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(3, 0)); // 1차: 코어 -> 중간까지
@@ -260,7 +302,7 @@ public class BuildToolsIntegrationTests
         var core = PlaceCoreLike(new Vector2Int(0, 0), new Vector2Int(1, 1));
         core.InputBuffer[driver.World.Database.GetResourceId("TestOre")] = 20;
 
-        PlaceMachine(processorDef, new Vector2Int(5, 0)); // 미리 좀 떨어진 곳에 배치
+        PlaceMachine(ProcessorMachineId, new Vector2Int(5, 0)); // 미리 좀 떨어진 곳에 배치
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(5, 0)); // 그 사이를 잇는 벨트
@@ -278,7 +320,7 @@ public class BuildToolsIntegrationTests
     {
         // 고정 포트 회귀 테스트: 기본 Facing (1,0)인 제련로는 입력이 (-1,0) 방향, 출력이
         // (1,0) 방향뿐이다. 측면((0,1) 방향)에서 드래그해 붙여도 연결되면 안 된다.
-        PlaceMachine(processorDef, new Vector2Int(0, 0));
+        PlaceMachine(ProcessorMachineId, new Vector2Int(0, 0));
 
         DragBelt(new Vector2Int(0, 3), new Vector2Int(0, 0)); // 북쪽(측면)에서 기계 칸으로 바로 드래그
 
@@ -289,7 +331,7 @@ public class BuildToolsIntegrationTests
     public void PlacingBeltOntoMiner_FromAnySide_NeverConnects()
     {
         // 채굴기는 입출력 포트가 없다(원격 전송) — 어느 면에서 드래그해도 벨트가 연결되면 안 된다.
-        PlaceMachine(minerDef, new Vector2Int(0, 0));
+        PlaceMachine(MinerMachineId, new Vector2Int(0, 0));
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(1, 0)); // 동쪽으로
         DragBelt(new Vector2Int(0, 0), new Vector2Int(-1, 0)); // 서쪽으로
@@ -305,7 +347,7 @@ public class BuildToolsIntegrationTests
         // 채굴기는 이제 하나뿐이고, 광물 노드가 있는 땅에만 지을 수 있다 — 아무것도 없는
         // 빈 땅에는 배치 자체가 거부되어야 한다(PlaceMachine 헬퍼가 자동으로 깔아주는 노드
         // 없이, 직접 확인/배치를 호출해서 검증).
-        machineTool.SelectMachine(minerDef);
+        machineTool.SelectMachine(MinerMachineId);
         machineTool.OnPressBegin(ScreenPosForCell(new Vector2Int(9, 9)) - GhostScreenOffset);
         bool confirmed = machineTool.Confirm();
 
@@ -320,7 +362,7 @@ public class BuildToolsIntegrationTests
         int depositId = driver.World.Database.GetOreDepositId("TestOreDeposit");
         var deposit = driver.World.Database.OreDeposits[depositId];
 
-        PlaceMachine(minerDef, new Vector2Int(2, 2)); // PlaceMachine이 그 칸에 TestOreDeposit을 자동으로 깔아줌
+        PlaceMachine(MinerMachineId, new Vector2Int(2, 2)); // PlaceMachine이 그 칸에 TestOreDeposit을 자동으로 깔아줌
 
         var miner = driver.World.Miners[0];
         Assert.AreEqual(deposit.ResourceId, miner.OutputResourceId, "채굴기가 노드의 자원을 그대로 물려받아야 함");
@@ -337,7 +379,7 @@ public class BuildToolsIntegrationTests
         DragBelt(new Vector2Int(0, 0), new Vector2Int(3, 0)); // (1,0),(2,0),(3,0)에 벨트가 깔림
         Assert.AreEqual(3, driver.World.Segments.Count, "사전 조건: 벨트 3칸이 실제로 깔려있어야 함");
 
-        machineTool.SelectMachine(processorDef);
+        machineTool.SelectMachine(ProcessorMachineId);
         machineTool.OnPressBegin(ScreenPosForCell(new Vector2Int(2, 0)) - GhostScreenOffset); // 벨트 칸 위
         bool confirmed = machineTool.Confirm();
 
@@ -361,7 +403,7 @@ public class BuildToolsIntegrationTests
         // 원래 체인이 그대로 살아있어야 한다.
         var core = PlaceCoreLike(new Vector2Int(0, 0), new Vector2Int(1, 1));
         core.InputBuffer[driver.World.Database.GetResourceId("TestOre")] = 20;
-        PlaceMachine(processorDef, new Vector2Int(5, 0));
+        PlaceMachine(ProcessorMachineId, new Vector2Int(5, 0));
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(5, 0)); // 코어 -> 제련로, (1,0)~(4,0) 4칸
@@ -384,8 +426,8 @@ public class BuildToolsIntegrationTests
         // 실제 플레이 순서 그대로: 채굴기를 놓으면(벨트 없이) 자동으로 코어에 쌓이고, 코어에서
         // 뻗은 벨트가 제련로까지 실어 날라서 최종 산출물이 나와야 한다.
         PlaceCoreLike(new Vector2Int(0, 0), new Vector2Int(1, 1));
-        PlaceMachine(minerDef, new Vector2Int(4, 4)); // 코어와 멀리 떨어진 곳 — 벨트로 안 이어도 됨
-        PlaceMachine(processorDef, new Vector2Int(3, 0));
+        PlaceMachine(MinerMachineId, new Vector2Int(4, 4)); // 코어와 멀리 떨어진 곳 — 벨트로 안 이어도 됨
+        PlaceMachine(ProcessorMachineId, new Vector2Int(3, 0));
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(3, 0));
@@ -415,12 +457,12 @@ public class BuildToolsIntegrationTests
         // "서로 다른 두 벨트가 각자 다른 포트에 잘 연결되는가"만 순수하게 검증할 수 있다.
         var core = PlaceCoreLike(new Vector2Int(0, 0), new Vector2Int(1, 2)); // (0,0),(0,1)
         core.InputBuffer[driver.World.Database.GetResourceId("TestOre")] = 50;
-        PlaceMachine(minerDef, new Vector2Int(4, 4)); // 원격 전송이라 코어와 안 이어도 됨
+        PlaceMachine(MinerMachineId, new Vector2Int(4, 4)); // 원격 전송이라 코어와 안 이어도 됨
 
-        PlaceMachine(processorDef, new Vector2Int(3, 0)); // 제련로: 코어와 같은 줄(y=0)
+        PlaceMachine(ProcessorMachineId, new Vector2Int(3, 0)); // 제련로: 코어와 같은 줄(y=0)
         AssignRecipe(driver.World.Processors.Count - 1, "TestRecipe");
 
-        PlaceMachine(assemblerDef, new Vector2Int(6, 0)); // 조립기(2x2): 입력면(서쪽) = (5,0),(5,1)
+        PlaceMachine(AssemblerMachineId, new Vector2Int(6, 0)); // 조립기(2x2): 입력면(서쪽) = (5,0),(5,1)
         AssignRecipe(driver.World.Processors.Count - 1, "TestGearRecipe");
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(3, 0)); // 코어(y=0) -> 제련로
@@ -447,7 +489,7 @@ public class BuildToolsIntegrationTests
         int oreId = driver.World.Database.GetResourceId("TestOre");
         core.InputBuffer[oreId] = 5; // 미리 쌓여있는 재고
 
-        PlaceMachine(processorDef, new Vector2Int(2, 0)); // 코어 동쪽 모서리(0,-1)/(0,0)에서 두 칸 떨어진 곳
+        PlaceMachine(ProcessorMachineId, new Vector2Int(2, 0)); // 코어 동쪽 모서리(0,-1)/(0,0)에서 두 칸 떨어진 곳
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(0, 0), new Vector2Int(2, 0)); // 코어 칸(0,0)에서 시작 -> 제련로 입력면까지
@@ -477,7 +519,7 @@ public class BuildToolsIntegrationTests
         int oreId = driver.World.Database.GetResourceId("TestOre");
         core.InputBuffer[oreId] = 5;
 
-        PlaceMachine(processorDef, new Vector2Int(4, 0)); // Facing 기본값 (1,0) -> 입력면은 (3,0)
+        PlaceMachine(ProcessorMachineId, new Vector2Int(4, 0)); // Facing 기본값 (1,0) -> 입력면은 (3,0)
         AssignRecipeToNewestProcessor();
 
         DragBelt(new Vector2Int(4, 0), coreCell); // 제련로에서 시작 -> 코어 쪽으로 드래그(역방향)
@@ -506,7 +548,7 @@ public class BuildToolsIntegrationTests
         var core = PlaceCoreLike(new Vector2Int(3, 0), new Vector2Int(1, 1));
         int coreIndex = driver.World.Processors.IndexOf(core);
 
-        PlaceMachine(processorDef, new Vector2Int(0, 0)); // Facing 기본값 (1,0) -> 출력면은 (1,0)
+        PlaceMachine(ProcessorMachineId, new Vector2Int(0, 0)); // Facing 기본값 (1,0) -> 출력면은 (1,0)
         AssignRecipeToNewestProcessor();
         int smelterIndex = driver.World.Processors.Count - 1;
         var smelter = driver.World.Processors[smelterIndex];

@@ -1,0 +1,2 @@
+C:\UnityProject\collabo-team-project-august-automated-factory\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\CMakeLists.txt
+C:\UnityProject\collabo-team-project-august-automated-factory\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\GameActivity\CMakeLists.txt

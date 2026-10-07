@@ -1,4 +1,6 @@
+using Factory.Building;
 using Factory.Buildings;
+using Factory.Rendering;
 using UnityEngine;
 
 namespace Factory.Simulation
@@ -16,6 +18,12 @@ namespace Factory.Simulation
 
         [SerializeField] private SimulationDriver driver;
         [SerializeField] private GameObject corePrefab;
+
+        // 테스트용 — 켜면 콘크리트 75개 대신 모든 자원을 아래 수량만큼 코어에 채워서 시작한다.
+        // 밸런스 확인 없이 아무 기계나 바로 지어보고 싶을 때만 켜고, 실제 밸런스 테스트 시엔
+        // 꺼야 한다(정식 시작 지급량은 아래 Start()의 콘크리트 75개 로직).
+        [SerializeField] private bool debugGiveAllResources = false;
+        [SerializeField] private int debugResourceAmount = 500;
 
         private void Start()
         {
@@ -35,16 +43,48 @@ namespace Factory.Simulation
                 UniversalPorts = true,
                 Anchor = Anchor,
                 Footprint = Footprint,
-                Capacity = 9999, // 창고 역할이라 일반 기계 버퍼보다 훨씬 크게.
+                Capacity = 99999999, // 창고 역할이라 일반 기계 버퍼보다 훨씬 크게.
             };
             int index = driver.World.AddProcessor(core);
             driver.World.CoreProcessorIndex = index; // 채굴기 원격 전송(MinerSystem)이 참조하는 대상
+
+            if (debugGiveAllResources)
+            {
+                for (int r = 0; r < core.InputBuffer.Length; r++) core.InputBuffer[r] = debugResourceAmount;
+            }
+            else if (db.TryGetResourceId("Concrete", out int concreteId))
+            {
+                // 시작 지급 — 채굴기 1대(콘크리트 15) + 벨트 20칸(칸당 3, 총 60)을 지을 수 있는
+                // 정확히 그만큼(75)만 쥐여준다. 더도 덜도 말고 "일단 첫 채굴기 하나는 자력으로
+                // 지을 수 있게" 하는 최소 부트스트랩 — 그 이후로는 채굴/제련한 걸로 스스로 굴려야 한다.
+                core.InputBuffer[concreteId] = 75;
+            }
             grid.RegisterBuildingFootprint(cells, CellOccupantType.Processor, index);
 
             Vector3 worldPos = GridUtility.GetFootprintCenter(Anchor, Footprint, 0.75f);
-            var go = corePrefab != null ? Instantiate(corePrefab, worldPos, Quaternion.identity) : GameObject.CreatePrimitive(PrimitiveType.Cube);
+            string coreKey = db.Machines[machineId].PrefabName; // "Prefab_Core" (AddressablesSetup)
+
+            GameObject go;
+            if (string.IsNullOrEmpty(coreKey) && corePrefab != null)
+            {
+                go = Instantiate(corePrefab, worldPos, Quaternion.identity); // 임시 다리(직접 참조)
+            }
+            else
+            {
+                go = new GameObject();
+                go.transform.position = worldPos;
+
+                var boxCollider = go.AddComponent<BoxCollider>();
+                boxCollider.center = new Vector3(0f, 0.5f, 0f);
+                boxCollider.size = new Vector3(Footprint.x, 1f, Footprint.y);
+
+                var placeholder = BuildVisuals.CreateBox(worldPos, new Vector3(Footprint.x, 1f, Footprint.y),
+                    new Color(0.2f, 0.45f, 0.7f), go.transform, withCollider: false);
+                placeholder.name = "Placeholder";
+
+                go.AddComponent<AddressableModelMount>().Mount(coreKey, placeholder);
+            }
             go.name = "Core";
-            if (corePrefab == null) go.transform.position = worldPos;
 
             var view = go.GetComponent<MachineView>() ?? go.AddComponent<MachineView>();
             view.Initialize(MachineInstanceKind.Processor, index, driver);

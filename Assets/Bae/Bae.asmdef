@@ -1,0 +1,17 @@
+{
+    "name": "Bae",
+    "rootNamespace": "",
+    "references": [
+        "Unity.InputSystem",
+        "Unity.LevelPlay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

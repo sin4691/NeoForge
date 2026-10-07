@@ -1,0 +1,39 @@
+﻿%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41c5ca3262229a54f80173b92db095a3, type: 3}
+  m_Name: ResearchTier_03
+  m_EditorClassIdentifier: Assembly-CSharp::Choi.Research.ResearchTierAsset
+  tier: 3
+  displayName: "\uCCA8\uB2E8 \uC0B0\uC5C5"
+  description: "\uCF54\uC5B4\uC758 \uC790\uC6D0\uC744 \uC5F0\uAD6C\uC18C\uC5D0 \uB204\uC801
+    \uB0A9\uD488\uD558\uC138\uC694."
+  unlockedMapSize: 400
+  resourceGoals:
+  - resourceId: RefinedQuartz
+    amount: 10000
+  - resourceId: QuartzPlate
+    amount: 10000
+  - resourceId: Gear
+    amount: 8000
+  - resourceId: IronBeam
+    amount: 6000
+  - resourceId: EnergyCell
+    amount: 8000
+  - resourceId: HighCapacityBattery
+    amount: 6000
+  machineRewards:
+  - machine: {fileID: 11400000, guid: 644b6242e54681549b932f9d109c47ec, type: 2}
+    icon: {fileID: 0}
+  recipeRewards:
+  - {fileID: 11400000, guid: ac8a4eaed9777dc49a6c06bba6f7209f, type: 2}
+  - {fileID: 11400000, guid: 3ab198361a62fb44abd3e5d9da5543c5, type: 2}
+  - {fileID: 11400000, guid: 6983669a2aabae8488c532b599e8fa33, type: 2}

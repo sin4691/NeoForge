@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using Bae.Data;
 using Factory.Data;
 using Factory.Simulation;
 using NUnit.Framework;
-using UnityEngine;
 
 public class BeltSystemTests
 {
@@ -97,7 +97,9 @@ public class BeltSystemTests
 
         var source = new ProcessorInstance(db.ResourceCount);
         source.OutputBuffer[resourceId] = 20;
-        var target = new ProcessorInstance(db.ResourceCount);
+        // 저장고(UniversalPorts)를 종착으로 둔다 — 레시피 없는 일반 기계는 이제 벨트 배달을
+        // 거부하므로(요청 안 한 기계엔 안 넣음), 벨트 자체의 무유실/무중복만 보려면 코어형 종착이 필요.
+        var target = new ProcessorInstance(db.ResourceCount) { UniversalPorts = true };
 
         var segment0 = new BeltSegment { Id = 0, Length = 1f, SpeedUnitsPerSecond = 2f, SourceProcessorId = 0, NextSegmentId = 1 };
         var segment1 = new BeltSegment { Id = 1, Length = 1f, SpeedUnitsPerSecond = 2f, TargetProcessorId = 1 };
@@ -143,6 +145,29 @@ public class BeltSystemTests
     }
 
     [Test]
+    public void CoreSource_SelfLoopBackToCore_NeverDispenses()
+    {
+        // 사용자가 보고한 버그: 코어에서 뽑은 벨트의 끝을 다시 같은 코어에 연결하면,
+        // 레시피를 지정하지 않았는데도 코어 내용물(석탄 등)이 계속 흘러나와 제자리를 돌았다.
+        // 받을 기계가 없는 자기 루프는 막다른 벨트와 똑같이 아무것도 내주면 안 된다.
+        var db = BuildMinimalDatabase(out int oreId);
+        var core = new ProcessorInstance(db.ResourceCount) { RecipeId = -1, UniversalPorts = true };
+        core.InputBuffer[oreId] = 10;
+
+        var segment = new BeltSegment { Id = 0, Length = 1f, SpeedUnitsPerSecond = 2f, SourceProcessorId = 0, TargetProcessorId = 0 };
+        var segments = new List<BeltSegment> { segment };
+        var processors = new List<ProcessorInstance> { core };
+
+        var system = new BeltSystem();
+        system.Configure(segments);
+
+        for (int i = 0; i < 50; i++) system.Tick(0.1f, segments, processors, db);
+
+        Assert.AreEqual(0, segment.Items.Count, "코어 자기 루프에는 아무것도 흘려보내면 안 됨");
+        Assert.AreEqual(10, core.InputBuffer[oreId], "재고도 그대로 남아있어야 함");
+    }
+
+    [Test]
     public void CoreSource_TargetWithoutRecipe_NeverDispenses()
     {
         // 목적지 기계는 있지만 아직 레시피를 지정 안 했으면("정보를 전달받기 전") 코어가
@@ -163,6 +188,33 @@ public class BeltSystemTests
 
         Assert.AreEqual(0, segment.Items.Count, "레시피 미지정 기계로는 코어가 아무것도 흘려보내면 안 됨");
         Assert.AreEqual(10, core.InputBuffer[oreId]);
+    }
+
+    [Test]
+    public void ItemsOnBelt_DoNotEnterRecipelessMachine_EvenWhenConnected()
+    {
+        // 사용자 보고: 벨트 끝에 아이템이 쌓여 있는데 그 끝에 기계를 놓아 연결되면, 레시피를
+        // 지정 안 했는데도 아이템이 그냥 입력 버퍼로 빨려 들어간다. 요청 안 한 기계는 안 받아야 한다.
+        var db = BuildMinimalDatabase(out int resourceId);
+        var machine = new ProcessorInstance(db.ResourceCount); // RecipeId 기본값 -1(미지정)
+        var segment = new BeltSegment { Id = 0, Length = 1f, SpeedUnitsPerSecond = 2f, TargetProcessorId = 0 };
+        for (int i = 0; i < 3; i++) segment.Items.Add(new BeltItem(resourceId, 1f - i * 0.3f)); // 벨트 위에 이미 얹혀 있는 아이템들
+
+        var segments = new List<BeltSegment> { segment };
+        var processors = new List<ProcessorInstance> { machine };
+        var system = new BeltSystem();
+        system.Configure(segments);
+
+        for (int i = 0; i < 50; i++) system.Tick(0.1f, segments, processors, db);
+
+        Assert.AreEqual(0, machine.InputBuffer[resourceId], "레시피 미지정 기계는 벨트 아이템을 받지 않아야 함");
+        Assert.AreEqual(3, segment.Items.Count, "아이템은 벨트 끝에서 그대로 대기해야 함(유실 없음)");
+
+        // 레시피를 지정하면 그때부터 정상적으로 받아들인다.
+        machine.RecipeId = 0;
+        for (int i = 0; i < 50; i++) system.Tick(0.1f, segments, processors, db);
+        Assert.AreEqual(3, machine.InputBuffer[resourceId], "레시피 지정 후에는 대기하던 아이템이 들어와야 함");
+        Assert.AreEqual(0, segment.Items.Count);
     }
 
     [Test]
@@ -289,67 +341,55 @@ public class BeltSystemTests
 
     private static GameDatabase BuildDatabaseWithTwoInputRecipe(out int oreId, out int scrapId, out int recipeId)
     {
-        var ore = ScriptableObject.CreateInstance<ResourceDef>();
-        ore.resourceId = "TestOre";
-        var scrap = ScriptableObject.CreateInstance<ResourceDef>();
-        scrap.resourceId = "TestScrap";
+        var ore = new ItemData { itemID = "TestOre" };
+        var scrap = new ItemData { itemID = "TestScrap" };
 
-        var recipe = ScriptableObject.CreateInstance<RecipeDef>();
-        recipe.recipeId = "TestTwoInputRecipe";
-        recipe.inputs = new[]
+        var recipe = new RecipeData
         {
-            new RecipeIngredient { resource = ore, amount = 1 },
-            new RecipeIngredient { resource = scrap, amount = 1 },
+            recipeID = "TestTwoInputRecipe",
+            machineID = "Assembler",
+            timeToCraft = 1f,
+            inputItems = new List<string> { "TestOre", "TestScrap" },
+            outputItems = new List<string>(),
         };
-        recipe.outputs = System.Array.Empty<RecipeIngredient>();
-        recipe.processSeconds = 1f;
-        recipe.requiredCategory = MachineCategory.Assembler;
 
-        var db = GameDatabase.Build(new[] { ore, scrap }, new[] { recipe }, System.Array.Empty<MachineDef>());
+        var db = GameDatabase.Build(new[] { ore, scrap }, System.Array.Empty<MachineData>(), new[] { recipe });
         oreId = db.GetResourceId("TestOre");
         scrapId = db.GetResourceId("TestScrap");
         recipeId = db.GetRecipeId("TestTwoInputRecipe");
 
-        Object.DestroyImmediate(ore);
-        Object.DestroyImmediate(scrap);
-        Object.DestroyImmediate(recipe);
         return db;
     }
 
     private static GameDatabase BuildDatabaseWithRecipe(out int oreId, out int scrapId, out int recipeId)
     {
-        var ore = ScriptableObject.CreateInstance<ResourceDef>();
-        ore.resourceId = "TestOre";
-        var scrap = ScriptableObject.CreateInstance<ResourceDef>();
-        scrap.resourceId = "TestScrap";
+        var ore = new ItemData { itemID = "TestOre" };
+        var scrap = new ItemData { itemID = "TestScrap" };
 
-        var recipe = ScriptableObject.CreateInstance<RecipeDef>();
-        recipe.recipeId = "TestRecipe";
-        recipe.inputs = new[] { new RecipeIngredient { resource = ore, amount = 1 } };
-        recipe.outputs = System.Array.Empty<RecipeIngredient>();
-        recipe.processSeconds = 1f;
-        recipe.requiredCategory = MachineCategory.Smelter;
+        var recipe = new RecipeData
+        {
+            recipeID = "TestRecipe",
+            machineID = "Smelter",
+            timeToCraft = 1f,
+            inputItems = new List<string> { "TestOre" },
+            outputItems = new List<string>(),
+        };
 
-        var db = GameDatabase.Build(new[] { ore, scrap }, new[] { recipe }, System.Array.Empty<MachineDef>());
+        var db = GameDatabase.Build(new[] { ore, scrap }, System.Array.Empty<MachineData>(), new[] { recipe });
         oreId = db.GetResourceId("TestOre");
         scrapId = db.GetResourceId("TestScrap");
         recipeId = db.GetRecipeId("TestRecipe");
 
-        Object.DestroyImmediate(ore);
-        Object.DestroyImmediate(scrap);
-        Object.DestroyImmediate(recipe);
         return db;
     }
 
     private static GameDatabase BuildMinimalDatabase(out int resourceId)
     {
-        var ore = ScriptableObject.CreateInstance<ResourceDef>();
-        ore.resourceId = "TestOre";
+        var ore = new ItemData { itemID = "TestOre" };
 
-        var db = GameDatabase.Build(new[] { ore }, System.Array.Empty<RecipeDef>(), System.Array.Empty<MachineDef>());
+        var db = GameDatabase.Build(new[] { ore }, System.Array.Empty<MachineData>(), System.Array.Empty<RecipeData>());
         resourceId = db.GetResourceId("TestOre");
 
-        Object.DestroyImmediate(ore);
         return db;
     }
 }

@@ -1,7 +1,7 @@
+using Bae.Data;
 using Factory.Data;
 using Factory.Simulation;
 using NUnit.Framework;
-using UnityEngine;
 
 public class SimulationWorldTests
 {
@@ -37,7 +37,9 @@ public class SimulationWorldTests
         var sourceProcessor = new ProcessorInstance(db.ResourceCount);
         sourceProcessor.OutputBuffer[resourceId] = 5;
         int sourceIndex = world.AddProcessor(sourceProcessor);
-        int targetIndex = world.AddProcessor(new ProcessorInstance(db.ResourceCount));
+        // 레시피 없는 일반 기계는 벨트 배달을 거부하므로(요청 안 한 기계엔 안 넣음), 벨트 자체의
+        // 동작만 보려면 코어형(아무거나 받는) 종착이 필요하다.
+        int targetIndex = world.AddProcessor(new ProcessorInstance(db.ResourceCount) { UniversalPorts = true });
 
         int segment0Id = world.Segments.Count;
         world.AddBeltSegment(new BeltSegment { Id = segment0Id, Length = 1f, SpeedUnitsPerSecond = 5f, SourceProcessorId = sourceIndex });
@@ -73,15 +75,35 @@ public class SimulationWorldTests
         Assert.AreEqual(5, core.InputBuffer[resourceId], "코어 재고로 곧바로 들어가 있어야 함");
     }
 
+    [Test]
+    public void RemoveSegment_ClearsUpstreamNextSegmentId_SoTheSpotCanBeRewired()
+    {
+        // 사용자가 보고한 버그: 벨트를 한 번 철거하면 그 자리에 벨트를 다시 못 이었다.
+        // 원인 — 상류 세그먼트의 NextSegmentId가 지워진 세그먼트를 계속 가리켜서, 건설 도구가
+        // "이미 다른 곳으로 흐르는 벨트"로 보고 재연결을 거부했다.
+        var db = BuildMinimalDatabase(out int resourceId);
+        var world = new SimulationWorld(db);
+
+        int upstreamId = world.Segments.Count;
+        world.AddBeltSegment(new BeltSegment { Id = upstreamId, Length = 1f });
+        int downstreamId = world.Segments.Count;
+        world.AddBeltSegment(new BeltSegment { Id = downstreamId, Length = 1f });
+        world.Segments[upstreamId].NextSegmentId = downstreamId;
+
+        world.RemoveSegment(downstreamId);
+
+        Assert.IsNull(world.Segments[downstreamId], "철거한 세그먼트 자리는 null(톰스톤)이어야 함");
+        Assert.IsFalse(world.Segments[upstreamId].NextSegmentId.HasValue,
+            "상류 세그먼트는 더 이상 지워진 세그먼트를 가리키면 안 됨 — 그래야 그 자리에 새 벨트를 다시 잇는다");
+    }
+
     private static GameDatabase BuildMinimalDatabase(out int resourceId)
     {
-        var ore = ScriptableObject.CreateInstance<ResourceDef>();
-        ore.resourceId = "TestOre";
+        var ore = new ItemData { itemID = "TestOre" };
 
-        var db = GameDatabase.Build(new[] { ore }, System.Array.Empty<RecipeDef>(), System.Array.Empty<MachineDef>());
+        var db = GameDatabase.Build(new[] { ore }, System.Array.Empty<MachineData>(), System.Array.Empty<RecipeData>());
         resourceId = db.GetResourceId("TestOre");
 
-        Object.DestroyImmediate(ore);
         return db;
     }
 }

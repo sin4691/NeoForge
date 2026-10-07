@@ -37,15 +37,21 @@ namespace Factory.Buildings
                     break;
                 case MachineInstanceKind.Processor:
                     var processor = driver.World.Processors[instanceIndex];
-                    // 코어(UniversalPorts)는 레시피 개념이 없는 순수 저장소라 선택 UI를 안 연다.
-                    if (processor.UniversalPorts)
+                    // LogProcessorState는 RecipeId<0(코어 포함)이어도 안전하다("(미지정)"으로
+                    // 찍음) — 예전엔 코어일 때 실제 버퍼 내용은 안 찍고 안내 문구만 띄워서,
+                    // 정작 코어에 자원이 들어오고 있는지 확인할 방법이 없었다.
+                    LogProcessorState(processor);
+
+                    // 코어(UniversalPorts)는 레시피 개념이 없는 순수 저장소라 선택 UI는 안 연다.
+                    if (processor.UniversalPorts) break;
+                    if (processor.IsGeneratorFuelPort)
                     {
-                        Debug.Log($"[MachineView] Core storage — buffer 합계는 InputBuffer 참고");
+                        RecipeSelectionPanel.Instance?.OpenGenerator(instanceIndex);
                         break;
                     }
-                    LogProcessorState(processor);
-                    var category = driver.World.Database.Machines[processor.MachineId].Category;
-                    RecipeSelectionPanel.Instance?.Open(instanceIndex, category);
+
+                    var machineId = driver.World.Database.Machines[processor.MachineId].Key;
+                    RecipeSelectionPanel.Instance?.Open(instanceIndex, machineId);
                     break;
             }
         }

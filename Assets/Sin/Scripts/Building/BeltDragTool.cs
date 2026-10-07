@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using Factory.Rendering;
 using Factory.Simulation;
 using UnityEngine;
 
@@ -10,9 +10,23 @@ namespace Factory.Building
     // 벨트가 정확히 그 면에 닿아야만 연결된다 — 어느 쪽이든 드래그 방향대로 연결되던
     // 예전 방식과 달리 모호함이 없다. 코어(UniversalPorts)와 기존 벨트는 예외적으로
     // 어느 쪽에 닿아도 되고, 드래그 시작/끝 위치로 소스/타겟이 갈린다.
-    public class BeltDragTool : MonoBehaviour, IBuildTool
+    //
+    // 파일이 너무 커져서(1000줄+) 역할별로 나눴다 — 전부 같은 MonoBehaviour의 partial
+    // 조각이라 동작/직렬화(SerializeField, 프리팹 참조)는 전혀 안 바뀐다:
+    //  - BeltDragTool.cs        (이 파일) 필드 + 입력 진입점
+    //  - BeltDragTool.Preview.cs   드래그 중 미리보기 그리기
+    //  - BeltDragTool.Commit.cs    릴리즈 시 실제 배선(Commit) + 기존 세그먼트 되그리기
+    //  - BeltDragTool.Ports.cs     포트/역할 판정(ResolveEndpointRole, TryFindAdjacentOccupant 등)
+    //  - BeltDragTool.Visuals.cs   순수 지오메트리 계산 + 스트립/코너 오브젝트 생성
+    public partial class BeltDragTool : MonoBehaviour, IBuildTool
     {
-        private enum EndpointRole
+        public static Func<IReadOnlyList<Vector2Int>, bool> PathPermission { get; set; }
+        // 전력 시설처럼 WorldGrid 밖에서 관리되는 오브젝트의 점유 판정 확장점.
+        public static Func<Vector2Int, bool> ExternalCellBlocked { get; set; }
+        // Seo님의 BeltConnectionFeedback이 자기만의 판정을 새로 만드는 대신 이 타입/메서드들을
+        // 그대로 가져다 쓴다 — 판정 로직이 두 곳에 따로 있으면 한쪽만 고쳤을 때 어긋나는
+        // 버그가 난다(이미 두 번 겪음: 미리보기 색 깜빡임, 자원 부족 미반영).
+        public enum EndpointRole
         {
             None,
             Source,
@@ -26,15 +40,93 @@ namespace Factory.Building
         // BeltItemVisual 프리팹의 반지름(지름 0.25의 절반)과 맞춰야 한다 — 벨트 위에 아이템이
         // "위에 얹힌" 것처럼 보이려면 벨트 두께의 절반 + 이 반지름만큼 띄워야 한다.
         [SerializeField] private float itemVisualRadius = 0.125f;
-        [SerializeField] private Color previewColor = new Color(0.2f, 0.9f, 0.3f, 0.5f);
+        [SerializeField] private Color previewColor = new Color(0.2f, 0.9f, 0.3f, 0.8f);
+        [SerializeField] private Color invalidPreviewColor = new Color(0.95f, 0.2f, 0.15f, 0.8f);
         [SerializeField] private Color committedColor = new Color(0.15f, 0.15f, 0.15f, 1f);
         [SerializeField] private GameObject itemVisualPrefab;
         [SerializeField] private GameObject stripPrefab;
+        // 코너(90도 꺾이는 칸) 프리팹. cornerPrefab = 우회전(진입 아래→이탈 오른쪽), cornerLeftPrefab = 좌회전.
+        // 좌회전 그림은 우회전 PNG를 좌우 반전해서 만들면 된다. cornerLeftPrefab 이 없으면 대칭 타일로 간주해
+        // cornerPrefab 을 양쪽에 쓴다(화살표 없는 코너용). 둘 다 없으면 직선 조각 2개로 폴백.
+        [SerializeField] private GameObject cornerPrefab;
+        [SerializeField] private GameObject cornerLeftPrefab;
+        // 납작 벨트 Quad 가 놓이는 높이. 바닥 타일이 두께가 있어서 0 이면 파묻힌다 — 타일 윗면 위로 올린다.
+        [SerializeField] private float beltSurfaceY = 0.06f;
+        // 코너 Quad 를 살짝 키워 직선과의 이음새를 덮는다(1 = 그대로, 1.08 = 8% 크게).
+        [SerializeField] private float cornerScale = 1.08f;
+        // 벨트 한 칸 놓는 데 드는 콘크리트(건설 비용). 기계 건설 비용(MachineGhostTool)과
+        // 같은 원리로 코어 창고에서 차감한다.
+        [SerializeField] private int concreteCostPerTile = 3;
+
+        private bool warnedNonConcreteBeltCost;
+
+        // 벨트 한 칸 건설비. 기본은 Bae님 데이터(Machines.json의 "Belt" — SO Assets/Bae/Data/
+        // Machines/Belt.asset)의 콘크리트 개수를 쓴다 — 그래야 설치 UI(HUD "설치 필요 자원")와
+        // 실제 차감액이 같은 데이터에서 나온다. 데이터에 "Belt"가 없으면(테스트 DB 등) 위
+        // concreteCostPerTile(Inspector 값)로 폴백한다. 철거 환불(SimulationWorld.RefundBeltCost)이
+        // 콘크리트 한 종류만 다루는 구조라, Belt 건설비에 콘크리트 말고 다른 자원을 적어도 여기선
+        // 무시한다(경고 로그).
+        private int ConcreteCostPerTile
+        {
+            get
+            {
+                if (driver == null || driver.World == null) return concreteCostPerTile;
+                var db = driver.World.Database;
+                if (!db.TryGetMachineId("Belt", out int machineId)
+                    || !db.TryGetResourceId("Concrete", out int concreteId))
+                {
+                    return concreteCostPerTile;
+                }
+
+                int concrete = 0;
+                bool hasOther = false;
+                var cost = db.Machines[machineId].BuildCost;
+                for (int i = 0; i < cost.Length; i++)
+                {
+                    if (cost[i].ResourceId == concreteId) concrete += cost[i].Amount;
+                    else hasOther = true;
+                }
+                if (hasOther && !warnedNonConcreteBeltCost)
+                {
+                    warnedNonConcreteBeltCost = true;
+                    Debug.LogWarning("[BeltDragTool] Belt 건설비에 콘크리트 외 자원이 있지만 벨트는 콘크리트만 지원합니다(환불 구조). 콘크리트 개수만 적용합니다.");
+                }
+                return concrete;
+            }
+        }
+        // 크로스 벨트(교차로)가 그 칸의 원래 벨트보다 얼마나 낮게 그려질지(BeltDragTool.Crossing.cs
+        // 참고) — 순수 시각용, 배선/시뮬레이션엔 영향 없다.
+        [SerializeField] private float crossingLoweredOffset = 0.03f;
+        // 교차 지점(IsCrossable 위를 실제로 지나가는 순간)에 얹는 전용 표시 모델 — 밑에 깔리는
+        // 벨트 스트립은 그대로 두고(BeltItemRenderer 앵커/아이템 이동에 계속 필요) 그 위에
+        // 장식으로 덧놓는다. 없으면 그냥 안 놓는다(폴백 없음 — 순수 장식이라 없어도 기능엔 문제 없음).
+        [SerializeField] private GameObject crosserVisualPrefab;
 
         private readonly Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
         private readonly List<Vector2Int> path = new List<Vector2Int>();
         private readonly List<GameObject> previewStrips = new List<GameObject>();
+        // 옆칸 자동연결 대상인 기존 벨트의 진짜 오브젝트 — 미리보기 중엔 잠깐 숨기고 대신
+        // "이대로 이어지면 이렇게 휠 것"이라는 임시 조각(previewStrips)을 덧씌워 보여준다.
+        // 진짜 데이터/모양은 전혀 안 건드리므로 취소해도 그대로 남는다. segmentId로 키를
+        // 둬서 RerenderSegmentStrip이 "숨겨진 옛 오브젝트"를 확실히 찾아 지울 수 있게 한다 —
+        // GameObject.Find는 비활성 오브젝트를 못 찾아서, 이름 검색만 믿으면 숨긴 옛 오브젝트가
+        // 안 지워진 채 ClearPreview에서 도로 살아나 새로 그린 것과 겹쳐 보이는 버그가 났었다.
+        private readonly Dictionary<int, GameObject> hiddenNeighborVisuals = new Dictionary<int, GameObject>();
         private bool dragging;
+
+        // 벨트 개수가 많아지면 놓을 때마다/재배선될 때마다(RerenderSegmentStrip) GameObject를
+        // 통째로 Destroy하고 새로 Instantiate하는 비용이 누적된다(사용자 지적) — segmentId로
+        // 현재 살아있는 벨트 루트를 찾아 그 자리에서 다시 그리고(Geometry 자식만 교체),
+        // 철거된 루트는 Destroy 대신 비활성화해서 풀에 보관했다가 다음 벨트 배치 때 재사용한다.
+        // GameObject.Find는 비활성 오브젝트를 못 찾으므로(위 hiddenNeighborVisuals와 같은 이유)
+        // 풀 재사용엔 이 딕셔너리가 반드시 필요하다. FactoryViewportCuller도 뷰포트 컬링 대상을
+        // 찾을 때 이 딕셔너리를 그대로 쓴다(BeltDragTool.Visuals.cs의 TryGetBeltVisual 참고).
+        private readonly Dictionary<int, GameObject> beltVisualRoots = new Dictionary<int, GameObject>();
+        private readonly Stack<GameObject> pooledBeltVisuals = new Stack<GameObject>();
+
+        // 성능 비교 전용 스위치(TestFactoryBuilder의 풀링 벤치마크 메뉴만 끈다). false면 반납 시
+        // 풀에 넣지 않고 바로 Destroy하고, 새 벨트도 항상 새로 만든다 — 풀링 도입 전 동작과 같다.
+        public static bool BeltVisualPoolingEnabled = true;
 
         // 에디터 SerializedObject 없이(런타임/테스트에서) 직접 배선할 때 쓴다.
         public void Initialize(Camera targetCamera, SimulationDriver driver)
@@ -51,6 +143,13 @@ namespace Factory.Building
 
             if (TryScreenToCell(screenPosition, out var cell))
             {
+                // 기계 칸에서는 드래그 자체를 시작하지 않는다 — 기계 옆 빈 칸에서 시작/끝내면
+                // 옆칸 자동연결(TryFindAdjacentOccupant)이 알아서 붙여준다.
+                if (IsMachineCell(cell))
+                {
+                    dragging = false;
+                    return;
+                }
                 BeltPathBuilder.Extend(path, cell);
                 RebuildPreview();
             }
@@ -63,14 +162,34 @@ namespace Factory.Building
 
             int before = path.Count;
             BeltPathBuilder.Extend(path, cell);
+            TrimAtMachine();
             if (path.Count != before) RebuildPreview();
+        }
+
+        // 벨트는 기계 칸을 밟거나 통과할 수 없다(코어/분류기 등 Belt 아닌 점유 전부). 기계에서
+        // 시작하거나 기계가 경로 중간에 끼면 미리보기/되그리기가 엉뚱한 이웃 벨트를 건드리는
+        // 문제가 계속 났다 — 아예 경로가 기계 직전 칸에서 끊기게 해서 그 경우 자체를 없앤다.
+        private bool IsMachineCell(Vector2Int cell)
+        {
+            if (driver == null || driver.World == null) return false;
+            return driver.World.Grid.TryGetOccupant(cell, out var occupant) && occupant.Type != CellOccupantType.Belt;
+        }
+
+        private void TrimAtMachine()
+        {
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (!IsMachineCell(path[i])) continue;
+                path.RemoveRange(i, path.Count - i);
+                return;
+            }
         }
 
         public void OnReleased(Vector2 screenPosition)
         {
             if (!dragging) return;
             dragging = false;
-            Commit();
+            if (PathPermission == null || PathPermission(path)) Commit();
             path.Clear();
             ClearPreview();
         }
@@ -88,283 +207,6 @@ namespace Factory.Building
             if (targetCamera == null) return false;
 
             return GridUtility.TryRaycastToCell(targetCamera.ScreenPointToRay(screenPosition), groundPlane, out cell);
-        }
-
-        private void RebuildPreview()
-        {
-            ClearPreview();
-            for (int k = 0; k < path.Count; k++)
-            {
-                ComputeCellSpan(path, k, out Vector3 entry, out Vector3 exit, out Vector3? bend);
-                if (bend.HasValue)
-                {
-                    previewStrips.Add(BuildVisuals.CreateStrip(entry, bend.Value, previewThickness, previewColor, transform, prefab: stripPrefab));
-                    previewStrips.Add(BuildVisuals.CreateStrip(bend.Value, exit, previewThickness, previewColor, transform, prefab: stripPrefab));
-                }
-                else
-                {
-                    previewStrips.Add(BuildVisuals.CreateStrip(entry, exit, previewThickness, previewColor, transform, prefab: stripPrefab));
-                }
-            }
-        }
-
-        // 세그먼트 하나가 정확히 자기 칸 안(경계~반대쪽 경계)에 들어차도록 진입/이탈 지점을
-        // 계산한다. 진입/이탈 방향이 다르면(코너) 꺾이는 지점(bend)을 반환해서 두 조각으로 나눠 그린다.
-        private static void ComputeCellSpan(List<Vector2Int> path, int k, out Vector3 entry, out Vector3 exit, out Vector3? bend)
-        {
-            Vector3 center = GridUtility.CellToWorldCenter(path[k], 0.5f);
-            Vector3? inDir = k > 0 ? DirWorld(path[k] - path[k - 1]) : (Vector3?)null;
-            Vector3? outDir = k < path.Count - 1 ? DirWorld(path[k + 1] - path[k]) : (Vector3?)null;
-
-            if (inDir.HasValue && outDir.HasValue && inDir.Value != outDir.Value)
-            {
-                entry = center - inDir.Value * 0.5f;
-                exit = center + outDir.Value * 0.5f;
-                bend = center;
-                return;
-            }
-
-            Vector3 dir = inDir ?? outDir ?? Vector3.forward;
-            entry = center - dir * 0.5f;
-            exit = center + dir * 0.5f;
-            bend = null;
-        }
-
-        private static Vector3 DirWorld(Vector2Int step) => new Vector3(step.x, 0f, step.y);
-
-        private void ClearPreview()
-        {
-            for (int i = 0; i < previewStrips.Count; i++) Destroy(previewStrips[i]);
-            previewStrips.Clear();
-        }
-
-        // 기계 포트(고정 입력/출력면), 코어(4면 다 유효), 기존 벨트(방향대로) 각각의 규칙으로
-        // 이 endpoint가 소스/타겟/무효 중 뭔지 판정한다.
-        // touchingCell: 드래그 경로상 기계 칸 바로 옆 칸(이게 어느 포트에 해당하는지로 역할이 정해짐).
-        // isStart: 이 endpoint가 드래그 시작 쪽인지 (코어/벨트처럼 방향 의존적인 경우에만 씀).
-        // isFixed: true면 포트 방향(Facing)만으로 확정된 값이라 절대 안 바뀐다(채굴기/제련로).
-        // false면 코어/벨트처럼 "어느 쪽에 이어붙이느냐"로만 정해지는 값이라, 반대쪽이 고정
-        // 역할을 가지고 있으면 그걸 보고 나중에 뒤집힐 수 있다(둘 다 같은 역할로 겹치는 것 방지).
-        private EndpointRole ResolveEndpointRole(CellOccupant occupant, Vector2Int touchingCell, bool isStart, out bool isFixed)
-        {
-            switch (occupant.Type)
-            {
-                case CellOccupantType.Miner:
-                    // 채굴기는 입출력 포트가 없다 — 캔 자원은 벨트 없이 코어로 곧장 원격 전송된다
-                    // (MinerSystem 참고). 그래서 어느 면에 닿아도 벨트 연결 대상이 될 수 없다.
-                    isFixed = true;
-                    return EndpointRole.None;
-                case CellOccupantType.Processor:
-                {
-                    var processor = driver.World.Processors[occupant.InstanceIndex];
-                    if (processor.UniversalPorts)
-                    {
-                        isFixed = false;
-                        return isStart ? EndpointRole.Source : EndpointRole.Target;
-                    }
-                    isFixed = true;
-                    // footprint가 1칸보다 클 수 있어서(예: 2x2 조립기), 밟은 칸(machineCell)이
-                    // 아니라 앵커 기준으로 포트 칸 목록을 계산한다 — 어느 footprint 칸에
-                    // 닿았든 앵커만 같으면 같은 결과가 나온다.
-                    var outputs = GridUtility.GetPortCells(processor.Anchor, processor.Footprint, processor.Facing, isOutputSide: true);
-                    if (outputs.Contains(touchingCell)) return EndpointRole.Source;
-                    var inputs = GridUtility.GetPortCells(processor.Anchor, processor.Footprint, processor.Facing, isOutputSide: false);
-                    if (inputs.Contains(touchingCell)) return EndpointRole.Target;
-                    return EndpointRole.None;
-                }
-                case CellOccupantType.Belt:
-                    isFixed = false;
-                    return isStart ? EndpointRole.Source : EndpointRole.Target;
-                default:
-                    isFixed = false;
-                    return EndpointRole.None;
-            }
-        }
-
-        private static EndpointRole Opposite(EndpointRole role) => role == EndpointRole.Source ? EndpointRole.Target : EndpointRole.Source;
-
-        private void Commit()
-        {
-            if (driver == null || driver.World == null || path.Count < 2) return;
-
-            var grid = driver.World.Grid;
-            bool startOccupied = grid.IsOccupied(path[0]);
-            bool endOccupied = grid.IsOccupied(path[path.Count - 1]);
-
-            // 벨트는 반드시 기존 포트(기계)나 벨트에서 시작해야 한다 — 손가락을 뗀 자리가
-            // 어디든(방향은 나중에 뒤집힐 수 있음) 아예 허공에서 시작해서 그릴 순 없다.
-            if (!startOccupied) return;
-
-            grid.TryGetOccupant(path[0], out var startOccupant);
-            grid.TryGetOccupant(path[path.Count - 1], out var endOccupant);
-
-            bool startFixed = false, endFixed = false;
-            var startRole = startOccupied ? ResolveEndpointRole(startOccupant, path[1], true, out startFixed) : EndpointRole.None;
-            var endRole = endOccupied ? ResolveEndpointRole(endOccupant, path[path.Count - 2], false, out endFixed) : EndpointRole.None;
-
-            // 점유된 칸이 있는데 유효한 포트가 아니면(기계 옆면 등) 거부 — 잘못된 연결을
-            // 어설프게 만들지 않는다.
-            if (startOccupied && startRole == EndpointRole.None) return;
-            if (endOccupied && endRole == EndpointRole.None) return;
-
-            // 양쪽 다 같은 역할로 겹치면(둘 다 Source거나 둘 다 Target) 보통 코어처럼 순서
-            // 의존적인(고정 아님) 쪽이 반대쪽 고정 포트 방향과 어긋난 경우다 — 예: 제련로
-            // 입력면 쪽에서 시작해 코어로 드래그하면, 입력면은 Target인데 코어도 (isStart가
-            // 아니라는 이유만으로) Target으로 잡혀버림. 고정 포트가 아닌 쪽을 반대 역할로
-            // 바로잡는다. 둘 다 고정이거나 둘 다 유동인데 겹치면 진짜로 애매하니 거부한다.
-            if (startOccupied && endOccupied && startRole == endRole)
-            {
-                if (!startFixed && endFixed) startRole = Opposite(endRole);
-                else if (startFixed && !endFixed) endRole = Opposite(startRole);
-                else return;
-            }
-
-            // 소스가 끝 쪽으로 판정됐으면(예: 제련로 입력면에서 시작해 코어 쪽으로 드래그한
-            // 경우) 경로를 뒤집어서 소스가 항상 앞에 오게 한다 — 세그먼트 체인은 배열 순서를
-            // 그대로 흐름 순서로 쓰기 때문. 역할은 이미 위에서 확정했으니 다시 판정하지 않고
-            // 그대로 맞바꾼다(다시 판정하면 위에서 바로잡은 결과가 날아감).
-            if (startRole != EndpointRole.Source && endRole == EndpointRole.Source)
-            {
-                path.Reverse();
-                (startOccupied, endOccupied) = (endOccupied, startOccupied);
-                (startOccupant, endOccupant) = (endOccupant, startOccupant);
-                (startRole, endRole) = (endRole, startRole);
-            }
-
-            // 시작 칸이 "이미 다른 곳으로 흐르고 있는" 기존 벨트면 여기서 거부한다 — 안 그러면
-            // 그 벨트의 NextSegmentId를 조용히 새 목적지로 덮어써서, 원래 흐르던 곳과의 연결이
-            // 몰래 끊기고 두 벨트가 뜻하지 않게 하나로 합쳐진다(합류 자체는 나중에 합류기로
-            // 의도적으로 할 수 있어야 하니 막지 않지만, "이미 연결된 벨트를 가로채는" 건 막는다).
-            if (startOccupied && startRole == EndpointRole.Source && startOccupant.Type == CellOccupantType.Belt
-                && driver.World.Segments[startOccupant.InstanceIndex].NextSegmentId.HasValue)
-            {
-                return;
-            }
-
-            // 시작/끝 칸이 유효한 포트(기계)나 기존 벨트와 겹치면 그 칸 자체는 새 벨트 칸으로
-            // 만들지 않고 대신 그 대상에 연결한다.
-            var beltCells = new List<Vector2Int>(path);
-            if (endOccupied) beltCells.RemoveAt(beltCells.Count - 1);
-            if (startOccupied) beltCells.RemoveAt(0);
-
-            if (beltCells.Count == 0)
-            {
-                // 새로 놓을 벨트 칸이 아예 없는 경우 (예: 기존 벨트 끝이 제련로 입력면 바로
-                // 옆칸이라 사이에 빈 칸이 없음) — 새 세그먼트 없이 기존 것끼리 바로 연결한다.
-                TryDirectLink(startOccupied, startOccupant, startRole, endOccupied, endOccupant, endRole);
-                return;
-            }
-
-            for (int i = 0; i < beltCells.Count; i++)
-            {
-                if (grid.IsOccupied(beltCells[i])) return; // 이미 다른 벨트/기계가 있는 칸과는 겹칠 수 없음
-            }
-
-            var createdSegments = new List<BeltSegment>(beltCells.Count);
-            for (int i = 0; i < beltCells.Count; i++)
-            {
-                createdSegments.Add(new BeltSegment { Id = driver.World.Segments.Count + i, Length = 1f });
-            }
-
-            if (startOccupied && startRole == EndpointRole.Source)
-            {
-                switch (startOccupant.Type)
-                {
-                    // Miner는 ResolveEndpointRole에서 항상 None이라 여기 Source로 들어올 수 없다.
-                    case CellOccupantType.Processor:
-                        createdSegments[0].SourceProcessorId = startOccupant.InstanceIndex;
-                        break;
-                    case CellOccupantType.Belt:
-                        // 기존 벨트 끝에 이어서 놓는 경우: 그 세그먼트가 새 첫 세그먼트로 흘러들게 연결.
-                        driver.World.Segments[startOccupant.InstanceIndex].NextSegmentId = createdSegments[0].Id;
-                        break;
-                }
-            }
-
-            if (endOccupied && endRole == EndpointRole.Target)
-            {
-                if (endOccupant.Type == CellOccupantType.Processor)
-                {
-                    createdSegments[createdSegments.Count - 1].TargetProcessorId = endOccupant.InstanceIndex;
-                }
-                else if (endOccupant.Type == CellOccupantType.Belt)
-                {
-                    // 기존 벨트 시작 쪽에 이어붙이는 경우: 새 마지막 세그먼트가 그 세그먼트로 흘러들게 연결.
-                    createdSegments[createdSegments.Count - 1].NextSegmentId = endOccupant.InstanceIndex;
-                }
-            }
-
-            for (int i = 0; i < createdSegments.Count - 1; i++)
-            {
-                createdSegments[i].NextSegmentId = createdSegments[i + 1].Id;
-            }
-
-            // beltCells[i]는 항상 path[pathOffset + i]에 대응한다 (시작 칸을 잘라냈으면 그만큼 밀림).
-            int pathOffset = startOccupied ? 1 : 0;
-
-            for (int i = 0; i < createdSegments.Count; i++)
-            {
-                ComputeCellSpan(path, pathOffset + i, out Vector3 entry, out Vector3 exit, out Vector3? bend);
-
-                driver.World.AddBeltSegment(createdSegments[i]);
-                grid.RegisterSegment(beltCells[i], createdSegments[i].Id);
-
-                SpawnCommittedVisual(entry, exit, bend, createdSegments[i].Id);
-            }
-        }
-
-        // 새 벨트 칸 없이 기존 벨트를 기존 제련로/기존 벨트에 직접 연결한다 (둘이 바로 붙어있는 경우).
-        // 채굴기는 최소 한 칸의 벨트가 있어야 산출물을 실을 수 있으므로 여기서는 다루지 않는다.
-        private void TryDirectLink(bool startOccupied, CellOccupant startOccupant, EndpointRole startRole, bool endOccupied, CellOccupant endOccupant, EndpointRole endRole)
-        {
-            if (!startOccupied || startOccupant.Type != CellOccupantType.Belt || startRole != EndpointRole.Source) return;
-            if (!endOccupied || endRole != EndpointRole.Target) return;
-
-            var startSegment = driver.World.Segments[startOccupant.InstanceIndex];
-            // 이미 다른 곳으로 흐르고 있는 벨트를 여기서 또 가로채면 안 된다(위 Commit()의
-            // 같은 취지 가드 참고) — 안 그러면 원래 목적지와의 연결이 조용히 끊긴다.
-            if (startSegment.NextSegmentId.HasValue || startSegment.TargetProcessorId.HasValue) return;
-
-            if (endOccupant.Type == CellOccupantType.Processor)
-            {
-                startSegment.TargetProcessorId = endOccupant.InstanceIndex;
-            }
-            else if (endOccupant.Type == CellOccupantType.Belt)
-            {
-                startSegment.NextSegmentId = endOccupant.InstanceIndex;
-            }
-        }
-
-        private void SpawnCommittedVisual(Vector3 from, Vector3 to, Vector3? bend, int segmentId)
-        {
-            var root = new GameObject($"Belt_{segmentId}");
-
-            // 벨트 스트립 메쉬는 from/to 지점을 중심(Y)으로 삼아 두께만큼 위아래로 걸쳐 있다.
-            // 아이템 앵커까지 같은 Y를 쓰면 아이템 절반이 벨트 안에 파묻혀 버리니, 벨트 윗면
-            // 위로 아이템 반지름만큼 띄워서 "위에 얹혀 굴러가는" 것처럼 보이게 한다.
-            Vector3 itemHeightOffset = Vector3.up * (committedThickness * 0.2f + itemVisualRadius);
-
-            var startAnchor = new GameObject("Start").transform;
-            startAnchor.SetParent(root.transform);
-            startAnchor.position = from + itemHeightOffset;
-
-            var endAnchor = new GameObject("End").transform;
-            endAnchor.SetParent(root.transform);
-            endAnchor.position = to + itemHeightOffset;
-
-            if (bend.HasValue)
-            {
-                // 코너 칸: 진입 절반 + 이탈 절반 두 조각으로 나눠 그려야 칸 전체가 빈틈없이 덮인다.
-                BuildVisuals.CreateStrip(from, bend.Value, committedThickness, committedColor, root.transform, prefab: stripPrefab);
-                BuildVisuals.CreateStrip(bend.Value, to, committedThickness, committedColor, root.transform, prefab: stripPrefab);
-            }
-            else
-            {
-                BuildVisuals.CreateStrip(from, to, committedThickness, committedColor, root.transform, prefab: stripPrefab);
-            }
-
-            var itemRenderer = root.AddComponent<BeltItemRenderer>();
-            itemRenderer.Initialize(driver, segmentId, startAnchor, endAnchor, itemVisualPrefab);
         }
     }
 }

@@ -1,0 +1,153 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Items
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Items
+  m_GUID: 2425375533a673b45a336bc0637ddc03
+  m_SerializeEntries:
+  - m_GUID: 178da9fba4aa79e41b618878e9fffa73
+    m_Address: Prefab_Item_GoldIngot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 193aa2bc711713a4a93d11e8e2ee1dd6
+    m_Address: Prefab_Item_GoldOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2561afd0aef722545b9965487ae13f07
+    m_Address: Prefab_Item_IronBeam
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3366865925ee8844d892ee83f6c518e2
+    m_Address: Prefab_Item_CopperWire
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 358a13507404c9a4a9aebf298a8ad8dc
+    m_Address: Prefab_Item_Coal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 445495d5cc2f98641912b3b4339543c9
+    m_Address: Prefab_Item_Gear
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4a7492c1cc0a4b64ea3c583b4869925d
+    m_Address: Prefab_Item_CoalBundle
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5246f0aa01ed52d4aabb36ff24cdc493
+    m_Address: Prefab_Item_IronIngot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 608e4ce42ad2265408dc7e5e6c8fdbcf
+    m_Address: Prefab_Item_PowerCable
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 62b0c6853b33e3d4bba1cff29f48f8e0
+    m_Address: Prefab_Item_RefinedUranium
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 82f62988c40a40a4d8d0ff2a45edd387
+    m_Address: Prefab_Item_HighCapacityBattery
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8aaa0f6a5944a164db7bf4b0a86d7684
+    m_Address: Prefab_Item_CarbonNanotube
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 90121ece610ab96438e3bc0fa8223131
+    m_Address: Prefab_Item_CopperPlate
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 97da850016a87224ba12f954879f0a13
+    m_Address: Prefab_Item_UraniumPlate
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a088372e653d4324f89a1d4e3332d904
+    m_Address: Prefab_Item_IronOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a71b416e94e9a424d9efade76a0b3d5e
+    m_Address: Prefab_Item_RefinedQuartz
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab73fc66bf566db43afd587de3db8775
+    m_Address: Prefab_Item_PlasmaCore
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b217b496b31948a46acd6511eb51f0f7
+    m_Address: Prefab_Item_Concrete
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b55abcdc5c1570349838243bc67d0065
+    m_Address: Prefab_Item_CopperIngot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ba370d97eb5287d478ad3e62211b40f2
+    m_Address: Prefab_Item_UraniumOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bf0da6552b6484e4d87b4b931c0ab749
+    m_Address: Prefab_Item_QuartzOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c35e623f531391e4681552ddcdc5b7eb
+    m_Address: Prefab_Item_Circuit
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c9f10be4f0ffe0941bb78e36c705be07
+    m_Address: Prefab_Item_CopperOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eb32e8fd4314aac41a7e20abc069c8bd
+    m_Address: Prefab_Item_IronPlate
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eb976c0f984b50b4fb5bd394fa9778ad
+    m_Address: Prefab_Item_QuartzPlate
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fc83b1ec294bc6e48946896177261968
+    m_Address: Prefab_Item_EnergyCell
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: c746699b192cd4c4fb3c8a5c9e22964e, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: c65251397022d714a846dbf7889e78f9, type: 2}
+    - {fileID: 11400000, guid: 26b50e4a090f5e9468cce7422be46dfb, type: 2}

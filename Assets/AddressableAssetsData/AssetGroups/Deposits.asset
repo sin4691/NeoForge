@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Deposits
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Deposits
+  m_GUID: 7b960b805b7c43a4f83514f00cbb3083
+  m_SerializeEntries:
+  - m_GUID: 079417840e96700428216dbb9143c7a9
+    m_Address: Prefab_Deposit_Concrete
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 085d69e7a3f3bba46a0e1bfc5c4af64f
+    m_Address: Prefab_Deposit_UraniumOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 32ab3f4ae0f5e164e80d7c97c569b1cc
+    m_Address: Prefab_Deposit_IronOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 704451af66c21664aa0cc0efbbd1d32f
+    m_Address: Prefab_Deposit_GoldOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9c7b62abc6f5a0447912fc72ebe76a66
+    m_Address: Prefab_Deposit_CopperOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d286742a0afbfbc4ea94535d3a1a8731
+    m_Address: Prefab_Deposit_Coal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f46e10a2a2b79e44e91a0447cbb606b9
+    m_Address: Prefab_Deposit_QuartzOre
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: c746699b192cd4c4fb3c8a5c9e22964e, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 0cdf923b57c6f7c4a882160a86edb417, type: 2}
+    - {fileID: 11400000, guid: 63a5642507faf1e44b52c369906a7490, type: 2}

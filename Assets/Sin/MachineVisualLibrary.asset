@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50593cc41a4604346ad4894974a025ec, type: 3}
+  m_Name: MachineVisualLibrary
+  m_EditorClassIdentifier: FactoryPrototype::Factory.Building.MachineVisualLibrary
+  entries:
+  - machineId: Miner
+    prefab: {fileID: 2094079478659925746, guid: 857faa14ef613d44e9eb8fbfb70bd67f, type: 3}
+  - machineId: Smelter
+    prefab: {fileID: 1832573994439364300, guid: 01c5eb1d6c319e641adcdafe1999bf87, type: 3}
+  - machineId: Former
+    prefab: {fileID: 6297069909021559556, guid: 0f3dcc7b56611b44fad9fbf04d606176, type: 3}
+  - machineId: Synthesizer
+    prefab: {fileID: 4627544789523760193, guid: 377e782cbf5503b4383c907201380664, type: 3}
+  - machineId: Splitter
+    prefab: {fileID: 3741054067250729150, guid: 20ab1f05ec99b564dae64234c206b7cc, type: 3}
+  - machineId: Merger
+    prefab: {fileID: 7401649739676287535, guid: 1f70cd2cd9104994293795b78f5c1372, type: 3}

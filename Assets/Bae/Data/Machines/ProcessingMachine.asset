@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75b8bed72c5f1e9468c71d3e32b3b052, type: 3}
+  m_Name: ProcessingMachine
+  m_EditorClassIdentifier: Bae::Bae.SO.MachineSO
+  machineID: ProcessingMachine
+  machineName: "\uAC00\uACF5\uAE30"
+  powerConsumption: 60
+  inputSlots: 3
+  outputSlots: 1
+  gridWidth: 2
+  gridHeight: 3
+  prefabName: Prefab_ProcessingMachine
+  buildCostItems:
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - Gear
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - EnergyCell
+  - IronBeam
+  - IronBeam
+  - IronBeam
+  - IronBeam
+  - IronBeam

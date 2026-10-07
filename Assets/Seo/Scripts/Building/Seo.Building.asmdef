@@ -1,0 +1,6 @@
+{
+    "name": "Seo.Building",
+    "rootNamespace": "Seo.Building",
+    "references": ["FactoryPrototype"],
+    "autoReferenced": true
+}

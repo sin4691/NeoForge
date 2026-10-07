@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Machines
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Machines
+  m_GUID: 426d442cc30340d4fbeb93bf023df66b
+  m_SerializeEntries:
+  - m_GUID: 231127cfd67f2764f8a1d391957c70ab
+    m_Address: Prefab_Merger
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 416fe71ac9aea2e41badee8b2359d3b8
+    m_Address: Prefab_Splitter
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 701a324d994ac9e4e91d6df706eefd88
+    m_Address: Prefab_Synthesizer
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 91394ecc541293b4b93e0ec9a0346d4a
+    m_Address: Prefab_Miner
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b7cfa31225232454dbd12898f19d4315
+    m_Address: Prefab_Core
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c148a42f3696a5d41b9abd6111c21f7b
+    m_Address: Prefab_Smelter
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d5819862d763b824e9de5dd01156b40b
+    m_Address: Prefab_Former
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dde9e4bc08222b34abee1702cd8a931a
+    m_Address: Prefab_ProcessingMachine
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fe77917c01cc1ea46b1dca31a4f8e440
+    m_Address: Prefab_MiniCore
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: c746699b192cd4c4fb3c8a5c9e22964e, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 16efdac915122cc49b807e575c9291c6, type: 2}
+    - {fileID: 11400000, guid: 581e4f87a49d35846861f005fe8dd061, type: 2}

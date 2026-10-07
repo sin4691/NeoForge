@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2a97ce20df3b7249a4710b5a2a05038, type: 3}
+  m_Name: BgmLibrary
+  m_EditorClassIdentifier: FactoryPrototype::Factory.Audio.BgmLibrary
+  entries:
+  - sceneName: Title
+    clip: {fileID: 8300000, guid: ef594f54f5f7db34ba88ff6cf3a8c5d7, type: 3}
+    volume: 1
+  - sceneName: Main
+    clip: {fileID: 8300000, guid: ee6dde64f1cd91246a47c2d64283a57a, type: 3}
+    volume: 1
+  fadeInSeconds: 2.5
+  fadeOutSeconds: 2.5
+  duckSeconds: 0.6
+  stopWhenSceneUnmapped: 0

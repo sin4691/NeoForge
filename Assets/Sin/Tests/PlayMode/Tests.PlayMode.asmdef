@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "FactoryPrototype",
+        "Bae",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -14,13 +15,36 @@ namespace Factory.Building
             None,
             Belt,
             PlaceMachine,
+            Demolish,
+            External,
         }
 
         [SerializeField] private BeltDragTool beltTool;
         [SerializeField] private MachineGhostTool machineTool;
+        [SerializeField] private DemolishTool demolishTool;
         [SerializeField] private TouchCameraRig cameraRig;
 
         private Mode mode = Mode.None;
+
+        // 벨트/배치 도구가 활성 상태인지 — TapInputManager가 "지금 이 프레스는 빌드 제스처지
+        // 기계 정보 확인 탭이 아니다"를 판단하는 데 쓴다.
+        public bool IsToolActive => mode != Mode.None;
+        public Mode CurrentMode => mode;
+        public IBuildTool ExternalTool { get; private set; }
+
+        // 외부 폴더의 도구를 공통 입력 인터페이스로 연결한다. 구체적인 기능은 호출자가 소유한다.
+        public void SetExternalTool(IBuildTool tool)
+        {
+            SetMode(Mode.None);
+            ExternalTool = tool;
+            if (tool != null) SetMode(Mode.External);
+        }
+        // 튜토리얼처럼 건설 입력은 허용하되 카메라 이동/줌만 잠가야 하는 흐름에서 사용한다.
+        public bool CameraInputEnabled { get; set; } = true;
+
+        // 팔레트 버튼이 "지금 내가 선택된 도구인지" UI로 표시할 수 있게 모드가 바뀔 때마다 알림.
+        public event Action<Mode> ModeChanged;
+
         private bool singleTouchActive;
         private Vector2? lastTwoTouchMidpoint;
         private float lastTwoTouchDistance;
@@ -29,7 +53,9 @@ namespace Factory.Building
         public void SetMode(Mode newMode)
         {
             if (singleTouchActive) CancelActiveTool();
+            if (newMode != Mode.External) ExternalTool = null;
             mode = newMode;
+            ModeChanged?.Invoke(mode);
         }
 
         private void Update()
@@ -69,7 +95,10 @@ namespace Factory.Building
 
             for (int i = 0; i < touches.Count; i++)
             {
-                if (!touches[i].press.isPressed) continue;
+                // isPressed만 보면 뗀 그 프레임(wasReleasedThisFrame)이 빠져서 릴리즈가
+                // 카운트되지 않고 else 분기(CancelActiveTool)로 새 버린다 — HasRelevantTouch와
+                // 같은 기준으로 릴리즈 프레임도 유효한 터치로 센다.
+                if (!touches[i].press.isPressed && !touches[i].press.wasReleasedThisFrame) continue;
                 activeCount++;
                 if (first == null) first = touches[i];
                 else if (second == null) second = touches[i];
@@ -105,10 +134,11 @@ namespace Factory.Building
 
             // 오른쪽 버튼 드래그는 왼쪽 버튼(건설 제스처)과 별개로 항상 카메라를 이동시킨다 —
             // 터치의 두 손가락 팬에 대응하는 마우스 조작이라, 배치/벨트 모드 중에도 막히면 안 됨.
-            HandleRightButtonPan(position, mouse.rightButton.wasPressedThisFrame, mouse.rightButton.wasReleasedThisFrame, overUI);
+            if (CameraInputEnabled)
+                HandleRightButtonPan(position, mouse.rightButton.wasPressedThisFrame, mouse.rightButton.wasReleasedThisFrame, overUI);
 
             float scroll = mouse.scroll.ReadValue().y;
-            if (Mathf.Abs(scroll) > 0.01f && cameraRig != null)
+            if (CameraInputEnabled && !overUI && Mathf.Abs(scroll) > 0.01f && cameraRig != null)
             {
                 // 휠 한 칸(scroll notch)은 터치 핀치 델타보다 훨씬 작은 값이라, 같은
                 // zoomSpeed를 그대로 곱하면 체감상 너무 느리다 — 휠 전용으로 크게 배율을 준다.
@@ -141,7 +171,7 @@ namespace Factory.Building
             if (tool == null)
             {
                 // 건설 도구가 선택 안 된 상태(None)에서는 한 손가락 드래그로 맵을 이동한다.
-                HandleSingleTouchPan(position, pressedThisFrame, releasedThisFrame, overUI);
+                if (CameraInputEnabled) HandleSingleTouchPan(position, pressedThisFrame, releasedThisFrame, overUI);
                 return;
             }
 
@@ -201,6 +231,7 @@ namespace Factory.Building
 
         private void HandleTwoTouch(Vector2 a, Vector2 b)
         {
+            if (!CameraInputEnabled) return;
             Vector2 midpoint = (a + b) * 0.5f;
             float dist = Vector2.Distance(a, b);
 
@@ -226,6 +257,8 @@ namespace Factory.Building
             {
                 case Mode.Belt: return beltTool;
                 case Mode.PlaceMachine: return machineTool;
+                case Mode.Demolish: return demolishTool;
+                case Mode.External: return ExternalTool;
                 default: return null;
             }
         }

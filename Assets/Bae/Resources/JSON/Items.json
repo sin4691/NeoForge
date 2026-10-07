@@ -1,0 +1,186 @@
+{
+    "items": [
+        {
+            "itemID": "CarbonNanotube",
+            "itemName": "탄소 나노 튜브",
+            "description": "게임 내 최고급 외장재로 석탄다발 석영판 우라늄판을 합치면 나와요\n가볍고 단단해요 ",
+            "iconName": "Icon_CarbonNanotube",
+            "prefabName": "Prefab_Item_CarbonNanotube"
+        },
+        {
+            "itemID": "Circuit",
+            "itemName": "회로",
+            "description": "전자기기, 상급 머신 건축용으로 구리판 구리선 금괴를 합치면 나와요",
+            "iconName": "Icon_Circuit",
+            "prefabName": "Prefab_Item_Circuit"
+        },
+        {
+            "itemID": "Coal",
+            "itemName": "석탄",
+            "description": "전력 발전과 합금 제작에 쓰이는 연료입니다.",
+            "iconName": "Icon_Coal",
+            "prefabName": "Prefab_Item_Coal"
+        },
+        {
+            "itemID": "CoalBundle",
+            "itemName": "석탄 다발",
+            "description": "석탄으로 만들수 있는 석탄의 다발입니다.",
+            "iconName": "Icon_CoalBundle",
+            "prefabName": "Prefab_Item_CoalBundle"
+        },
+        {
+            "itemID": "Concrete",
+            "itemName": "콘크리트",
+            "description": "가공 없이 건축/토대에 바로 쓰이는 자원입니다.",
+            "iconName": "Icon_Concrete",
+            "prefabName": "Prefab_Item_Concrete"
+        },
+        {
+            "itemID": "CopperIngot",
+            "itemName": "구리 괴",
+            "description": "구리 원석으로 구리 괴 입니다.",
+            "iconName": "Icon_CopperIngot",
+            "prefabName": "Prefab_Item_CopperIngot"
+        },
+        {
+            "itemID": "CopperOre",
+            "itemName": "구리 원석",
+            "description": "기본 구조재의 원료가 되는 광석입니다.",
+            "iconName": "Icon_CopperOre",
+            "prefabName": "Prefab_Item_CopperOre"
+        },
+        {
+            "itemID": "CopperPlate",
+            "itemName": "구리 판",
+            "description": "구리 괴를 넣어서 얇게 피면 나와요 성형기로 이런게 어떻게 나올까요",
+            "iconName": "Icon_CopperPlate",
+            "prefabName": "Prefab_Item_CopperPlate"
+        },
+        {
+            "itemID": "CopperWire",
+            "itemName": "구리 선",
+            "description": "구리를 길고 얇게 뽑으면 우리가 잘 아는 저항의 쓰이는 구리 선이 된답니다.",
+            "iconName": "Icon_CopperWire",
+            "prefabName": "Prefab_Item_CopperWire"
+        },
+        {
+            "itemID": "EnergyCell",
+            "itemName": "에너지 셀",
+            "description": "중후반 전력 시설 및 배터리 재료로 구리선과 정제된 석영을 합치면 나와요",
+            "iconName": "Icon_EnergyCell",
+            "prefabName": "Prefab_Item_EnergyCell"
+        },
+        {
+            "itemID": "Gear",
+            "itemName": "기어",
+            "description": "각종 물리적 기계 건축용으로 철판과 구리괴를 합치면 나와요",
+            "iconName": "Icon_Gear",
+            "prefabName": "Prefab_Item_Gear"
+        },
+        {
+            "itemID": "GoldIngot",
+            "itemName": "금괴",
+            "description": "요즘 금값 오른다는데 이 금괴는 몇돈일까요 아무튼 재련료에 넣으면 나와요",
+            "iconName": "Icon_GoldIngot",
+            "prefabName": "Prefab_Item_GoldIngot"
+        },
+        {
+            "itemID": "GoldOre",
+            "itemName": "금 원석",
+            "description": "희귀 자원으로 요즘 금값 많이 올라요.",
+            "iconName": "Icon_GoldOre",
+            "prefabName": "Prefab_Item_GoldOre"
+        },
+        {
+            "itemID": "HighCapacityBattery",
+            "itemName": "대용량 배터리",
+            "description": "대규모 전력망 및 플라즈마 코어 재료로 에너지 셀과 철판을 합치면 나와요\n듀라셀 ",
+            "iconName": "Icon_HighCapacityBattery",
+            "prefabName": "Prefab_Item_HighCapacityBattery"
+        },
+        {
+            "itemID": "IronBeam",
+            "itemName": "철빔",
+            "description": "Mk.2 벨트, 단단한 인프라용으로 석탄과 철판을 합성하면 나와요",
+            "iconName": "Icon_IronBeam",
+            "prefabName": "Prefab_Item_IronBeam"
+        },
+        {
+            "itemID": "IronIngot",
+            "itemName": "철 주괴",
+            "description": "철광석을 제련하여 만든 주괴입니다.",
+            "iconName": "Icon_IronIngot",
+            "prefabName": "Prefab_Item_IronIngot"
+        },
+        {
+            "itemID": "IronOre",
+            "itemName": "철 원석",
+            "description": "기본 구조재의 원료가 되는 광석입니다.",
+            "iconName": "Icon_IronOre",
+            "prefabName": "Prefab_Item_IronOre"
+        },
+        {
+            "itemID": "IronPlate",
+            "itemName": "철판",
+            "description": "건축과 기계 부품에 폭넓게 쓰이는 기초 재료입니다.",
+            "iconName": "Icon_IronPlate",
+            "prefabName": "Prefab_Item_IronPlate"
+        },
+        {
+            "itemID": "PlasmaCore",
+            "itemName": "플라즈마 코어",
+            "description": "엔드게임 콘텐츠 (최종 발전기, 방어 포탑) 재료로 대용량 배터리 탄소나노튜브 우라늄판을 합치면 나와요 와 짱짱맨",
+            "iconName": "Icon_PlasmaCore",
+            "prefabName": "Prefab_Item_PlasmaCore"
+        },
+        {
+            "itemID": "PowerCable",
+            "itemName": "전선",
+            "description": "전기를 옮겨줘요",
+            "iconName": "Icon_PowerCable",
+            "prefabName": "Prefab_Item_PowerCable"
+        },
+        {
+            "itemID": "QuartzOre",
+            "itemName": "석영 원석",
+            "description": "기본 구조재의 원료가 되는 광석입니다.",
+            "iconName": "Icon_QuartzOre",
+            "prefabName": "Prefab_Item_QuartzOre"
+        },
+        {
+            "itemID": "QuartzPlate",
+            "itemName": "석영 판",
+            "description": "정제된 석영을 넣으면 석영 판이 나와요",
+            "iconName": "Icon_QuartzPlate",
+            "prefabName": "Prefab_Item_QuartzPlate"
+        },
+        {
+            "itemID": "RefinedQuartz",
+            "itemName": "정제된 석영",
+            "description": "석영을 재련료에 넣으면 정재되서 나와요 짜란",
+            "iconName": "Icon_RefinedQuartz",
+            "prefabName": "Prefab_Item_RefinedQuartz"
+        },
+        {
+            "itemID": "RefinedUranium",
+            "itemName": "정제된 우라늄",
+            "description": "우라늄을 재련료 하나로 어떻게 정제하는 지는 모르겠지만 아무튼 정제해서 나와요",
+            "iconName": "Icon_RefinedUranium",
+            "prefabName": "Prefab_Item_RefinedUranium"
+        },
+        {
+            "itemID": "UraniumOre",
+            "itemName": "우라늄 원석",
+            "description": "후반 태크 위험 자원 광석 입니다.",
+            "iconName": "Icon_UraniumOre",
+            "prefabName": "Prefab_Item_UraniumOre"
+        },
+        {
+            "itemID": "UraniumPlate",
+            "itemName": "우라늄 판",
+            "description": "정제된 우라늄을 초 신기한 기술로 꾹꾹 누르면 우라늄 판이 된다요",
+            "iconName": "Icon_UraniumPlate",
+            "prefabName": "Prefab_Item_UraniumPlate"
+        }
+    ]
+}

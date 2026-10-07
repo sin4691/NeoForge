@@ -46,8 +46,22 @@ namespace Factory.Building
             {
                 Vector2Int step = DominantAxisStep(delta);
                 current += step;
-                path.Add(current);
                 delta -= step;
+
+                // 드래그가 빨라서 여러 칸을 건너뛰면 여기서 중간 칸들을 채워 넣는데, 그 중간
+                // 칸이 이미 지나온 경로와 겹치면(자기 자신을 가로지름) 그 지점까지 잘라내고
+                // 멈춘다. 안 그러면(끝 칸만 되짚기 검사하던 예전 방식) 경로가 스스로를
+                // 가로질러 같은 칸이 두 번 들어가는 꼬인 경로가 되고, Commit()이 그 칸을
+                // 두 번 등록해버려서 벨트가 중복 설치되는 사고로 이어진다(실제로 겪은 버그 —
+                // 빠르게 드래그하면 가끔 벨트가 꼬여서 이상하게 깔림).
+                int crossIndex = path.IndexOf(current);
+                if (crossIndex >= 0)
+                {
+                    path.RemoveRange(crossIndex + 1, path.Count - crossIndex - 1);
+                    return;
+                }
+
+                path.Add(current);
             }
         }
 
