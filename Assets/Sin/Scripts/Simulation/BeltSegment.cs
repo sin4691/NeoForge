@@ -15,7 +15,7 @@ namespace Factory.Simulation
         public int? NextSegmentId
         {
             get => nextSegmentId;
-            set { nextSegmentId = value; BeltTopologyVersion.Bump(); }
+            set { if (nextSegmentId == value) return; nextSegmentId = value; BeltTopologyVersion.Bump(); }
         }
 
         public float Length = 1f;
@@ -51,7 +51,7 @@ namespace Factory.Simulation
         public int? SourceProcessorId
         {
             get => sourceProcessorId;
-            set { sourceProcessorId = value; BeltTopologyVersion.Bump(); }
+            set { if (sourceProcessorId == value) return; sourceProcessorId = value; BeltTopologyVersion.Bump(); }
         }
 
         // 이 라인이 처음 실어 나른 자원으로 굳어진 값 — 한 번 정해지면 계속 그 자원만
@@ -71,7 +71,7 @@ namespace Factory.Simulation
         public int? TargetProcessorId
         {
             get => targetProcessorId;
-            set { targetProcessorId = value; BeltTopologyVersion.Bump(); }
+            set { if (targetProcessorId == value) return; targetProcessorId = value; BeltTopologyVersion.Bump(); }
         }
 
         // Position 오름차순 정렬 유지 (Items[0] = 세그먼트 시작에 가장 가까운 아이템).

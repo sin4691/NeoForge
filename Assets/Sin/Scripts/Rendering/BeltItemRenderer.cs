@@ -37,6 +37,9 @@ namespace Factory.Rendering
         }
 
         private readonly List<Slot> pool = new List<Slot>();
+
+        // 성능 비교 전용 스위치(TestFactoryBuilder의 아이템 슬롯 풀링 벤치마크만 끈다).
+        public static bool ItemSlotPoolingEnabled = true;
         private BeltSegment segment;
 
         // 런타임에 벨트를 놓는 건설 도구가 에디터 SerializedObject 없이 직접 배선할 때 쓴다.
@@ -103,6 +106,18 @@ namespace Factory.Rendering
                 // 폴백(구)을 쓰는 슬롯만 매 프레임 다시 칠한다 — 실제 모델은 자기 고유 재질을
                 // 그대로 쓰고 색으로 구분할 필요가 없다.
                 if (!slot.HasModel) BuildVisuals.Colorize(slot.FallbackRenderer, database.Resources[item.ResourceId].Color);
+            }
+
+            if (!ItemSlotPoolingEnabled)
+            {
+                // 비교용 "풀링 없음" — 남는 슬롯을 숨겨 두지 않고 바로 버린다. 아이템이 이 칸에
+                // 새로 들어올 때마다 슬롯(+자원 모델)을 다시 만들게 되는, 풀링 도입 전과 같은 동작.
+                for (int i = pool.Count - 1; i >= segment.Items.Count; i--)
+                {
+                    Destroy(pool[i].Root.gameObject);
+                    pool.RemoveAt(i);
+                }
+                return;
             }
 
             for (int i = segment.Items.Count; i < pool.Count; i++)

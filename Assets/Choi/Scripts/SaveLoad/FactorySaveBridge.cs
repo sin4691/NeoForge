@@ -61,6 +61,7 @@ namespace Choi.SaveLoad
             RestoreMiners(world, data.miners);
             RestoreProcessors(world, data.processors, data.coreProcessorIndex, coreVisual);
             world.CoreProcessorIndex = data.coreProcessorIndex;
+            RelinkMiniCores(world, data.processors);
             RestoreBelts(world, data.belts);
             powerGrid.ReplaceNodes(data.powerNodes);
             powerGrid.ReplaceConnections(data.powerConnections);
@@ -332,6 +333,31 @@ namespace Choi.SaveLoad
                     SpawnMachineVisual(world, saved.machineKey, processor.Anchor, processor.Footprint, processor.Facing,
                         MachineInstanceKind.Processor, index, isCore);
                 }
+            }
+        }
+
+        // 미니 코어는 설치할 때(MachineGhostTool.LinkToMainCore) 메인 코어의 버퍼 배열을 그대로
+        // 물려받아 같은 창고를 본다. RestoreProcessors는 모든 기계를 새 버퍼로 만들기 때문에, 여기서
+        // 다시 이어주지 않으면 로드 후 미니 코어가 별개의 창고가 된다 — 게다가 저장 시점에 미니 코어
+        // 몫으로 기록된 내용물은 사실 코어 내용물이라 그대로 복원하면 자원이 복제된다. 그래서 저장된
+        // 미니 코어 버퍼는 버리고 코어 배열로 교체한다.
+        private static void RelinkMiniCores(SimulationWorld world, List<ProcessorProgressData> savedProcessors)
+        {
+            if (savedProcessors == null) return;
+            int coreIndex = world.CoreProcessorIndex;
+            if (coreIndex < 0 || coreIndex >= world.Processors.Count || world.Processors[coreIndex] == null) return;
+            ProcessorInstance core = world.Processors[coreIndex];
+
+            for (int i = 0; i < savedProcessors.Count && i < world.Processors.Count; i++)
+            {
+                ProcessorProgressData saved = savedProcessors[i];
+                ProcessorInstance processor = world.Processors[i];
+                if (saved == null || processor == null || i == coreIndex || saved.machineKey != "MiniCore") continue;
+
+                processor.UniversalPorts = true;
+                processor.InputBuffer = core.InputBuffer;
+                processor.OutputBuffer = core.OutputBuffer;
+                processor.Capacity = core.Capacity;
             }
         }
 

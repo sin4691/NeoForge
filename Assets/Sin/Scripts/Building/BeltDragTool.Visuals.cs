@@ -152,7 +152,7 @@ namespace Factory.Building
             }
 
             GameObject root;
-            if (pooledBeltVisuals.Count > 0)
+            if (BeltVisualPoolingEnabled && pooledBeltVisuals.Count > 0)
             {
                 root = pooledBeltVisuals.Pop();
                 root.SetActive(true);
@@ -210,6 +210,11 @@ namespace Factory.Building
             }
             root.name = "Belt_Pooled";
             root.SetActive(false);
+            if (!BeltVisualPoolingEnabled)
+            {
+                Destroy(root); // 벤치마크용 "풀링 없음" 모드 — 풀링 도입 전처럼 통째로 버린다.
+                return;
+            }
             pooledBeltVisuals.Push(root);
         }
 

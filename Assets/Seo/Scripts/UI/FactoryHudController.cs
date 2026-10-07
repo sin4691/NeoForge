@@ -92,6 +92,14 @@ namespace Seo.UI
         private GameObject toastRoot;
         private BuildInputRouter buildRouter;
         private MachineGhostTool machineTool;
+        // 매 프레임 씬 전체를 뒤지지 않도록 한 번 찾은 참조를 들고 있는다 — 공장이 커지면
+        // FindFirstObjectByType/GameObject.Find 비용이 오브젝트 수에 비례해서 프레임을 크게 잡아먹었다.
+        private PowerGridSystem powerGrid;
+        private PowerBuildController powerController;
+        private GameObject legacyPowerPanel;
+        private GameObject legacyPowerPanelToggle;
+        private float nextLegacyPanelSearch;
+        private string lastPowerText;
         private SimulationDriver simulationDriver;
         private BeltDragTool beltTool;
         private string pendingPlacementMachineId;
@@ -1854,7 +1862,7 @@ namespace Seo.UI
             int coreIndex = world.CoreProcessorIndex;
             if (coreIndex >= 0 && coreIndex < world.Processors.Count) core = world.Processors[coreIndex];
 
-            var powerController = FindFirstObjectByType<PowerBuildController>();
+            if (powerController == null) powerController = FindFirstObjectByType<PowerBuildController>();
             if (powerController != null)
             {
                 if (powerController.Mode == PowerBuildMode.Generator)
@@ -1985,7 +1993,7 @@ namespace Seo.UI
             var mode = buildRouter != null ? buildRouter.CurrentMode : BuildInputRouter.Mode.None;
             bool placingMachine = mode == BuildInputRouter.Mode.PlaceMachine;
             bool placingMiner = placingMachine && machineTool != null && machineTool.SelectedMachineId == "Miner";
-            var powerController = FindFirstObjectByType<PowerBuildController>();
+            if (powerController == null) powerController = FindFirstObjectByType<PowerBuildController>();
             bool placingPower = powerController != null && powerController.HasPendingNodePlacement;
             bool placingGenerator = placingPower && powerController.Mode == PowerBuildMode.Generator;
             var moveTool = GroupMoveTool.ActiveFor(buildRouter);
@@ -2039,7 +2047,8 @@ namespace Seo.UI
         private void UpdatePowerStatus()
         {
             if (powerText == null) return;
-            var grid = FindFirstObjectByType<PowerGridSystem>();
+            if (powerGrid == null) powerGrid = FindFirstObjectByType<PowerGridSystem>();
+            var grid = powerGrid;
             if (grid == null)
             {
                 powerText.text = "전력 시스템 준비 중";
@@ -2054,9 +2063,15 @@ namespace Seo.UI
                 : $"{grid.RequestedPower} / {grid.AvailablePower}";
 
             powerText.color = SeoUITheme.Current.Text;
-            powerText.text =
+            // 같은 문자열을 매 프레임 다시 넣으면 Text가 매번 레이아웃/메시를 다시 만든다 — 바뀔 때만 넣는다.
+            string text =
                 $"{warningLight}   사용 / 공급  {powerAmount} MW\n" +
                 $"가동 기계   {grid.PoweredMachineCount} / {grid.TotalMachineCount}대";
+            if (text != lastPowerText)
+            {
+                powerText.text = text;
+                lastPowerText = text;
+            }
 
             if (powerStatusButton != null)
             {
@@ -2074,7 +2089,9 @@ namespace Seo.UI
             if (panel == null) return;
             var root = panel.gameObject;
             if (root.transform.parent != safeRoot) root.transform.SetParent(safeRoot, false);
-            if (root.activeSelf) root.transform.SetAsLastSibling();
+            // 닫혀 있는 동안엔 꾸밀 이유가 없다 — 예전엔 닫혀 있어도 매 프레임 레이아웃 강제 재계산까지 돌았다.
+            if (!root.activeSelf) return;
+            root.transform.SetAsLastSibling();
             var rt = root.GetComponent<RectTransform>();
             SeoUIFactory.SetRect(rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 820f));
@@ -2131,12 +2148,19 @@ namespace Seo.UI
             }
         }
 
-        private static void HideLegacyPowerPanel()
+        // GameObject.Find는 활성 오브젝트 전체를 훑는다 — 매 프레임 두 번씩 부르면 벨트/기계가
+        // 많은 공장에서 이것만으로 수십 ms가 나왔다. 한 번 찾은 건 들고 있다가 켜져 있을 때만 끄고,
+        // 아직 못 찾은 건 1초에 한 번만 다시 찾는다(늦게 생성되는 경우 대비).
+        private void HideLegacyPowerPanel()
         {
-            var panel = GameObject.Find("FactoryPowerPanel");
-            if (panel != null) panel.SetActive(false);
-            var toggle = GameObject.Find("FactoryPowerPanelToggle");
-            if (toggle != null) toggle.SetActive(false);
+            if ((legacyPowerPanel == null || legacyPowerPanelToggle == null) && Time.unscaledTime >= nextLegacyPanelSearch)
+            {
+                nextLegacyPanelSearch = Time.unscaledTime + 1f;
+                if (legacyPowerPanel == null) legacyPowerPanel = GameObject.Find("FactoryPowerPanel");
+                if (legacyPowerPanelToggle == null) legacyPowerPanelToggle = GameObject.Find("FactoryPowerPanelToggle");
+            }
+            if (legacyPowerPanel != null && legacyPowerPanel.activeSelf) legacyPowerPanel.SetActive(false);
+            if (legacyPowerPanelToggle != null && legacyPowerPanelToggle.activeSelf) legacyPowerPanelToggle.SetActive(false);
         }
 
         private static void UpdateRecipeButtonVisual(Button button)

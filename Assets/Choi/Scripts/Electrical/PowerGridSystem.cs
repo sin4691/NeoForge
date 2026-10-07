@@ -58,6 +58,8 @@ namespace Choi.SaveLoad
         private readonly List<PowerNodeRuntime> nodes = new List<PowerNodeRuntime>();
         private readonly Dictionary<Vector2Int, PowerNodeRuntime> nodeByCell = new Dictionary<Vector2Int, PowerNodeRuntime>();
         private readonly List<PowerConnectionRuntime> connections = new List<PowerConnectionRuntime>();
+        // EvaluatePower 한 번 동안만 쓰는 "전선이 하나라도 물린 노드" 목록(HasConnection 반복 스캔 대체).
+        private readonly HashSet<int> connectedNodeIds = new HashSet<int>();
         private readonly Dictionary<MinerInstance, float> minerBaseSpeed = new Dictionary<MinerInstance, float>();
         private readonly Dictionary<ProcessorInstance, float> processorBaseSpeed = new Dictionary<ProcessorInstance, float>();
         private readonly Dictionary<ProcessorInstance, int> processorDesiredRecipe = new Dictionary<ProcessorInstance, int>();
@@ -648,6 +650,16 @@ namespace Choi.SaveLoad
             if (driver == null) driver = FindAnyObjectByType<SimulationDriver>();
             if (driver == null || driver.World == null) return;
 
+            // 송전탑 연결 여부를 기계마다 전선 목록 전체를 다시 훑어 판정하면(HasConnection)
+            // 기계 × 송전탑 × 전선 수만큼 돌아서 대형 공장에서 평가 한 번이 수십 ms가 된다.
+            // 이번 평가 동안은 연결이 안 바뀌므로 한 번만 모아두고 조회한다.
+            connectedNodeIds.Clear();
+            for (int i = 0; i < connections.Count; i++)
+            {
+                connectedNodeIds.Add(connections[i].FromNodeId);
+                connectedNodeIds.Add(connections[i].ToNodeId);
+            }
+
             BuildComponents(out Dictionary<int, int> componentByNodeId, out List<int> remainingByComponent);
             int coreComponent = AddCorePowerComponent(remainingByComponent);
             AvailablePower = 0;
@@ -813,7 +825,7 @@ namespace Choi.SaveLoad
                     || !componentByNodeId.TryGetValue(tower.Id, out int component)
                     || component < 0 || component >= capacityByComponent.Count
                     || capacityByComponent[component] <= 0
-                    || !HasConnection(tower.Id))
+                    || !connectedNodeIds.Contains(tower.Id))
                 {
                     continue;
                 }
@@ -890,7 +902,7 @@ namespace Choi.SaveLoad
                     || !componentByNodeId.TryGetValue(tower.Id, out int component)
                     || component < 0 || component >= capacityByComponent.Count
                     || capacityByComponent[component] <= 0
-                    || !HasConnection(tower.Id)) continue;
+                    || !connectedNodeIds.Contains(tower.Id)) continue;
                 count++;
             }
             return count;

@@ -37,7 +37,9 @@ public class SimulationWorldTests
         var sourceProcessor = new ProcessorInstance(db.ResourceCount);
         sourceProcessor.OutputBuffer[resourceId] = 5;
         int sourceIndex = world.AddProcessor(sourceProcessor);
-        int targetIndex = world.AddProcessor(new ProcessorInstance(db.ResourceCount));
+        // 레시피 없는 일반 기계는 벨트 배달을 거부하므로(요청 안 한 기계엔 안 넣음), 벨트 자체의
+        // 동작만 보려면 코어형(아무거나 받는) 종착이 필요하다.
+        int targetIndex = world.AddProcessor(new ProcessorInstance(db.ResourceCount) { UniversalPorts = true });
 
         int segment0Id = world.Segments.Count;
         world.AddBeltSegment(new BeltSegment { Id = segment0Id, Length = 1f, SpeedUnitsPerSecond = 5f, SourceProcessorId = sourceIndex });

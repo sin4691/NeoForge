@@ -51,6 +51,21 @@ namespace Factory.Rendering
             this.beltTool = beltTool;
         }
 
+        // 성능 비교 전용(TestFactoryBuilder의 컬링 벤치마크). 컴포넌트를 그냥 끄기만 하면 이미 꺼둔
+        // 화면 밖 비주얼이 꺼진 채로 남아 "컬링 없음" 상태가 안 되므로, 끌 때는 전부 다시 켜고,
+        // 켤 때는 첫 스윕부터 다시 하게 상태를 초기화한다.
+        public void SetCullingEnabled(bool on)
+        {
+            if (!on && driver != null && driver.World != null)
+            {
+                foreach (var chunk in driver.World.Grid.AllChunks) SetChunkVisualsActive(chunk, true);
+            }
+            visibleChunks.Clear();
+            didInitialSweep = false;
+            timer = updateInterval; // 켜자마자 다음 Update에서 바로 스윕
+            enabled = on;
+        }
+
         // Inspector에 안 물려있으면 씬에서 알아서 찾는다 — 빈 GameObject에 이 컴포넌트만
         // 얹어도 바로 동작하게(별도 배선 작업 없이 켜볼 수 있게).
         private void Awake()

@@ -14,6 +14,10 @@ namespace Factory.Simulation
     // 도구, 이동 도구, 레시피 패널) 흩어져 있는데, 호출자마다 "버전 올리는 거 잊지 않기"를
     // 챙기게 하면 하나라도 빠뜨렸을 때 캐시가 낡은 값을 계속 쓰는 새 버그가 생긴다. 그래서
     // 무효화 책임을 호출자가 아니라 데이터 자체(세터)에 심어뒀다.
+    //
+    // 단, 세터는 값이 실제로 바뀔 때만 올린다. PowerGridSystem.EvaluatePower가 0.2초마다 모든
+    // 기계의 RecipeId를 (대부분 같은 값으로) 다시 대입하는데, 같은 값에도 올리던 시절엔 그때마다
+    // 맵 전체 캐시가 날아가 대형 공장에서 그 재계산이 프레임을 크게 잡아먹었다.
     public static class BeltTopologyVersion
     {
         public static int Current { get; private set; }

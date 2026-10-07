@@ -20,7 +20,9 @@ public class BuildToolsIntegrationTests
 {
     private static readonly Vector2 GhostScreenOffset = new Vector2(0f, 150f);
 
-    private const string MinerMachineId = "TestMiner";
+    // 채굴기는 MachineGhostTool이 실제 machineID "Miner"로만 알아본다(광맥 확인/원격 전송) —
+    // 다른 이름을 쓰면 일반 기계로 지어져서 채굴 관련 테스트가 엉뚱하게 깨진다.
+    private const string MinerMachineId = "Miner";
     private const string ProcessorMachineId = "TestProcessor";
     private const string AssemblerMachineId = "TestAssembler";
 
@@ -104,6 +106,13 @@ public class BuildToolsIntegrationTests
         Object.DestroyImmediate(driverGO);
         Object.DestroyImmediate(toolsGO);
         Object.DestroyImmediate(oreDepositDef);
+
+        // 벨트 비주얼 루트는 씬 최상위에 만들어져서 위 오브젝트들과 같이 안 지워진다 — 남겨두면 다음
+        // 테스트에서 같은 이름(Belt_N)을 가진 옛 오브젝트가 섞여 이름 기반 확인이 엉뚱하게 깨진다.
+        foreach (var go in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (go != null && go.transform.parent == null && go.name.StartsWith("Belt_")) Object.DestroyImmediate(go);
+        }
     }
 
     private Vector2 ScreenPosForCell(Vector2Int cell)
@@ -189,27 +198,39 @@ public class BuildToolsIntegrationTests
         // 사용자 지적: "풀만 하고 꺼내서 쓰지는 않는 거 아니냐" — 벨트를 철거하면 GameObject를
         // 비활성화해서 풀에 넣어두기만 하고, 새 벨트를 놓을 때 정말로 그 오브젝트를 재사용하는지
         // (그냥 계속 새로 만들기만 하는 건 아닌지) 인스턴스 identity로 직접 확인한다.
+        // 빈 땅에서 시작하는 벨트는 이제 설치가 거부되므로(시작점이 출력원이어야 함), 양쪽 벨트
+        // 모두 코어 옆에서 시작시킨다.
+        PlaceCoreLike(new Vector2Int(-1, 0), Vector2Int.one);
+        PlaceCoreLike(new Vector2Int(4, 0), Vector2Int.one);
+        // 오브젝트는 GameObject.Find 대신 도구의 레지스트리(TryGetBeltVisual)로 찾는다 — Find는 비활성
+        // (풀에 반납된) 오브젝트를 못 찾고, 이름이 같은 다른 오브젝트를 잘못 집을 수도 있다.
+        int countBefore = driver.World.Segments.Count;
         DragBelt(new Vector2Int(0, 0), new Vector2Int(1, 0));
+        Assert.Greater(driver.World.Segments.Count, countBefore, "코어 옆에서 시작한 벨트는 설치되어야 함");
         int firstId = driver.World.Segments[driver.World.Segments.Count - 1].Id;
-        var firstVisual = GameObject.Find($"Belt_{firstId}");
-        Assert.IsNotNull(firstVisual, "벨트를 놓으면 Belt_{id} 오브젝트가 있어야 함");
+        Assert.IsTrue(beltTool.TryGetBeltVisual(firstId, out var firstVisual), "벨트를 놓으면 비주얼이 등록되어야 함");
         int pooledInstanceId = firstVisual.GetInstanceID();
 
         // DemolishTool.Confirm이 벨트 철거 시 실제로 부르는 것과 같은 호출.
         beltTool.ReturnBeltVisual(firstId);
         driver.World.RemoveSegment(firstId);
 
-        Assert.IsNull(GameObject.Find($"Belt_{firstId}"), "반납된 벨트는 비활성화되어 이름으로 못 찾아야 함");
-        Assert.IsNotNull(GameObject.Find("Belt_Pooled"), "반납된 벨트는 풀에 Belt_Pooled로 대기 중이어야 함");
+        Assert.IsFalse(beltTool.TryGetBeltVisual(firstId, out _), "반납된 벨트는 레지스트리에서 빠져야 함");
+        Assert.IsFalse(firstVisual.activeSelf, "반납된 벨트는 비활성 상태로 풀에서 대기해야 함");
+        Assert.AreEqual("Belt_Pooled", firstVisual.name);
 
+        int secondStart = driver.World.Segments.Count;
         DragBelt(new Vector2Int(5, 0), new Vector2Int(6, 0)); // 전혀 다른 위치에 새 벨트.
-        int secondId = driver.World.Segments[driver.World.Segments.Count - 1].Id;
-        var secondVisual = GameObject.Find($"Belt_{secondId}");
+        Assert.Greater(driver.World.Segments.Count, secondStart, "두 번째 벨트도 설치되어야 함");
 
-        Assert.IsNotNull(secondVisual, "새 벨트도 Belt_{id} 오브젝트가 있어야 함");
-        Assert.AreEqual(pooledInstanceId, secondVisual.GetInstanceID(),
-            "새 벨트가 풀에 반납된 오브젝트를 재사용해야 함(새로 또 만들면 안 됨)");
-        Assert.IsNull(GameObject.Find("Belt_Pooled"), "재사용됐으면 풀에 남은 Belt_Pooled가 없어야 함");
+        // 새 드래그로 생긴 세그먼트 중 하나가 풀에 있던 바로 그 오브젝트를 재사용해야 한다.
+        bool reused = false;
+        for (int id = secondStart; id < driver.World.Segments.Count; id++)
+        {
+            if (beltTool.TryGetBeltVisual(id, out var visual) && visual.GetInstanceID() == pooledInstanceId) reused = true;
+        }
+        Assert.IsTrue(reused, "새 벨트가 풀에 반납된 오브젝트를 재사용해야 함(새로 또 만들면 안 됨)");
+        Assert.IsTrue(firstVisual.activeSelf, "재사용된 오브젝트는 다시 활성화되어야 함");
     }
 
     [Test]

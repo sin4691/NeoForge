@@ -1,5 +1,6 @@
 using Bae.Data;
 using Factory.Data;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Factory.Simulation
@@ -14,6 +15,8 @@ namespace Factory.Simulation
         public SimulationWorld World { get; private set; }
 
         private float accumulator;
+
+        private static readonly ProfilerMarker TickMarker = new ProfilerMarker("Sim.Tick");
 
         private void Awake()
         {
@@ -57,7 +60,8 @@ namespace Factory.Simulation
 
             while (accumulator >= fixedDelta)
             {
-                World.Tick(fixedDelta);
+                // Profiler Hierarchy의 Calls 열이 "이 프레임에 틱이 몇 번 돌았나"가 된다.
+                using (TickMarker.Auto()) World.Tick(fixedDelta);
                 accumulator -= fixedDelta;
             }
         }
