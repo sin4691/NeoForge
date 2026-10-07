@@ -90,6 +90,416 @@ public static class TestFactoryBuilder
         ScheduleReport(driver, powerGrid);
     }
 
+    // 벨트 비주얼 풀링 켬/끔 비교. 세이브 전체를 다시 불러오면 로드 코드의 다른 비용(씬 전체 검색 등,
+    // 수 초)에 풀링 차이(수십 ms 수준)가 묻혀서, 벨트 비주얼만 떼어 낸다 — 모든 벨트를 반납
+    // (ReturnBeltVisual, 철거와 같은 호출)한 뒤 RerenderSegmentStrip으로 다시 그린다. 시뮬레이션
+    // 데이터는 안 건드리므로 공장은 그대로 돈다. 시작 1회는 워밍업으로 버리고, 켬/끔을 번갈아 5회씩 잰다.
+    // 풀링을 끈 쪽의 Destroy는 프레임 끝에 처리되므로 "재생성 호출 시간"에는 덜 잡힌다 — 그래서
+    // 직후 몇 프레임의 최대 프레임 시간도 같이 기록한다.
+    private const string PoolingBenchmarkMenuPath = "Tools/Factory/Debug/Benchmark Belt Pooling (Rebuild x5)";
+    private const int PoolingBenchmarkRounds = 5;
+
+    [MenuItem(PoolingBenchmarkMenuPath, true)]
+    private static bool ValidatePoolingBenchmark() => Application.isPlaying;
+
+    [MenuItem(PoolingBenchmarkMenuPath)]
+    private static void BenchmarkBeltPooling()
+    {
+        var driver = UnityEngine.Object.FindAnyObjectByType<SimulationDriver>();
+        var beltTool = UnityEngine.Object.FindAnyObjectByType<Factory.Building.BeltDragTool>();
+        if (driver == null || driver.World == null || beltTool == null)
+        {
+            Debug.LogError("[PoolingBench] Main 씬 플레이 중에만 쓸 수 있다.");
+            return;
+        }
+
+        int belts = CountBelts(driver.World);
+        var plan = new List<bool> { true }; // 0번 = 워밍업(기록 안 함)
+        for (int i = 0; i < PoolingBenchmarkRounds; i++) { plan.Add(true); plan.Add(false); }
+
+        var samples = new Dictionary<bool, List<(double callMs, float spikeMs)>>
+        {
+            { true, new List<(double, float)>() },
+            { false, new List<(double, float)>() },
+        };
+
+        int step = 0;
+        int sampleUntilFrame = -1;
+        float spike = 0f;
+        double pendingMs = 0;
+
+        Debug.Log($"[PoolingBench] 시작 — 벨트 {belts}칸, 켬/끔 각 {PoolingBenchmarkRounds}회 (+워밍업 1회)");
+
+        void Tick()
+        {
+            if (!Application.isPlaying)
+            {
+                EditorApplication.update -= Tick;
+                Factory.Building.BeltDragTool.BeltVisualPoolingEnabled = true;
+                return;
+            }
+
+            // 직전 재생성 뒤 몇 프레임 동안의 최대 프레임 시간(지연된 Destroy 포함)을 모은다.
+            if (sampleUntilFrame >= 0)
+            {
+                spike = Mathf.Max(spike, Time.unscaledDeltaTime * 1000f);
+                if (Time.frameCount < sampleUntilFrame) return;
+                if (step > 1) samples[plan[step - 1]].Add((pendingMs, spike));
+                sampleUntilFrame = -1;
+            }
+
+            if (step >= plan.Count)
+            {
+                EditorApplication.update -= Tick;
+                Factory.Building.BeltDragTool.BeltVisualPoolingEnabled = true;
+                Debug.Log(BuildPoolingReport(belts, samples));
+                return;
+            }
+
+            pendingMs = RebuildAllBeltVisuals(driver.World, beltTool, plan[step]);
+            spike = 0f;
+            sampleUntilFrame = Time.frameCount + 4;
+            step++;
+        }
+
+        EditorApplication.update += Tick;
+    }
+
+    // Profiler 캡처용 단발 실행 — 켬/끔을 섞어 돌리면 어느 스파이크가 어느 쪽인지 그래프에서 구분이
+    // 안 되므로, 한 번에 한 조건으로 한 번만 벨트를 다시 그린다.
+    [MenuItem("Tools/Factory/Debug/Rebuild Belts Once (Pooling ON)", true)]
+    [MenuItem("Tools/Factory/Debug/Rebuild Belts Once (Pooling OFF)", true)]
+    private static bool ValidateRebuildOnce() => Application.isPlaying;
+
+    [MenuItem("Tools/Factory/Debug/Rebuild Belts Once (Pooling ON)")]
+    private static void RebuildOncePoolingOn() => RebuildOnce(true);
+
+    [MenuItem("Tools/Factory/Debug/Rebuild Belts Once (Pooling OFF)")]
+    private static void RebuildOncePoolingOff() => RebuildOnce(false);
+
+    private static void RebuildOnce(bool pooling)
+    {
+        var driver = UnityEngine.Object.FindAnyObjectByType<SimulationDriver>();
+        var beltTool = UnityEngine.Object.FindAnyObjectByType<Factory.Building.BeltDragTool>();
+        if (driver == null || driver.World == null || beltTool == null) { Debug.LogError("[PoolingBench] Main 씬 플레이 중에만 쓸 수 있다."); return; }
+
+        // 메뉴가 열려 있는 동안 에디터가 멈춘 시간이 "메뉴를 누른 프레임"에 통째로 더해져서, 바로
+        // 실행하면 Profiler 스파이크에 메뉴 조작 시간이 섞인다(실제로 5초짜리 프레임으로 찍힘).
+        // 1초 뒤 별도 프레임에서 실행해 두 시간을 분리한다.
+        double runAt = EditorApplication.timeSinceStartup + 1.0;
+        Debug.Log($"[PoolingBench] 1초 뒤 풀링 {(pooling ? "켬" : "끔")}으로 벨트를 다시 그린다 — Profiler 녹화 중인지 확인");
+
+        void Run()
+        {
+            if (!Application.isPlaying) { EditorApplication.update -= Run; return; }
+            if (EditorApplication.timeSinceStartup < runAt) return;
+            EditorApplication.update -= Run;
+
+            double ms = RebuildAllBeltVisuals(driver.World, beltTool, pooling);
+            Debug.Log($"[PoolingBench] 벨트 {CountBelts(driver.World)}칸 1회 재생성 — 풀링 {(pooling ? "켬" : "끔")}: {ms:F1} ms " +
+                      $"(프레임 {Time.frameCount}. 풀링 끔의 삭제 비용은 다음 프레임에 잡히니 Profiler에서 다음 프레임도 확인)");
+        }
+
+        EditorApplication.update += Run;
+    }
+
+    // 모든 벨트 비주얼을 철거할 때와 같은 방식으로 반납하고, 재배선 때 쓰는 경로로 다시 그린다.
+    private static double RebuildAllBeltVisuals(SimulationWorld world, Factory.Building.BeltDragTool beltTool, bool pooling)
+    {
+        Factory.Building.BeltDragTool.BeltVisualPoolingEnabled = pooling;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < world.Segments.Count; i++)
+        {
+            if (world.Segments[i] == null) continue;
+            beltTool.ReturnBeltVisual(i);
+            beltTool.RerenderSegmentStrip(i);
+        }
+        watch.Stop();
+        Factory.Building.BeltDragTool.BeltVisualPoolingEnabled = true;
+        return watch.Elapsed.TotalMilliseconds;
+    }
+
+    private static int CountBelts(SimulationWorld world)
+    {
+        int belts = 0;
+        foreach (var segment in world.Segments) if (segment != null) belts++;
+        return belts;
+    }
+
+    private static string BuildPoolingReport(int belts, Dictionary<bool, List<(double callMs, float spikeMs)>> samples)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"[PoolingBench] 결과 — 벨트 비주얼 {belts}칸 반납 후 재생성, 각 {PoolingBenchmarkRounds}회 평균");
+        foreach (bool pooling in new[] { false, true })
+        {
+            var list = samples[pooling];
+            if (list.Count == 0) continue;
+            double call = 0, spike = 0;
+            foreach (var s in list) { call += s.callMs; spike += s.spikeMs; }
+            sb.AppendLine($"  풀링 {(pooling ? "켬" : "끔")}: 재생성 호출 {call / list.Count:F1} ms, 직후 최대 프레임 {spike / list.Count:F1} ms");
+        }
+        sb.AppendLine("  (에디터 측정. 풀링 끔 쪽 Destroy는 프레임 끝에 처리돼 '직후 최대 프레임'에 주로 잡힌다)");
+        return sb.ToString();
+    }
+
+    // 벨트 아이템 슬롯 풀링(BeltItemRenderer) 켬/끔 비교. 평상시 프레임 비교라 공장을 그대로 둔 채
+    // 스위치만 바꿔 가며 잰다. 끔/켬을 번갈아 3라운드, 단계마다 2초 안정화 후 6초 측정.
+    // 게임 쪽 비용만 보려고 Profiler의 PlayerLoop 마커 시간을 쓴다(에디터 창 갱신 시간인 EditorLoop 제외).
+    // 화면 밖 벨트는 컬링으로 꺼져 있어 측정에 안 들어가므로, 공장이 화면 가득 보이는 같은 시점에서 돌린다.
+    private const string ItemPoolingMenuPath = "Tools/Factory/Debug/Benchmark Item Slot Pooling (3 rounds)";
+    private const int ItemPoolingRounds = 3;
+    private const float ItemPoolingSettleSeconds = 2f;
+    private const float ItemPoolingSampleSeconds = 6f;
+
+    [MenuItem(ItemPoolingMenuPath, true)]
+    private static bool ValidateItemPoolingBenchmark() => Application.isPlaying;
+
+    [MenuItem(ItemPoolingMenuPath)]
+    private static void BenchmarkItemSlotPooling()
+    {
+        var playerLoop = StartRecorderByName("PlayerLoop");
+        if (!playerLoop.Valid)
+        {
+            Debug.LogError("[ItemPoolBench] PlayerLoop 마커를 찾지 못해 측정할 수 없다.");
+            return;
+        }
+        var gcAlloc = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+
+        var phases = new List<bool>();
+        for (int i = 0; i < ItemPoolingRounds; i++) { phases.Add(false); phases.Add(true); }
+
+        // 모드별 누적: 프레임 수, PlayerLoop ns 합, GC 바이트 합, 측정 구간 실제 시간.
+        var frames = new Dictionary<bool, long> { { true, 0 }, { false, 0 } };
+        var loopNs = new Dictionary<bool, double> { { true, 0 }, { false, 0 } };
+        var gcBytes = new Dictionary<bool, double> { { true, 0 }, { false, 0 } };
+        var seconds = new Dictionary<bool, double> { { true, 0 }, { false, 0 } };
+
+        int phase = -1;
+        float phaseStart = 0f;
+        int lastFrame = -1;
+
+        Debug.Log($"[ItemPoolBench] 시작 — 끔/켬 번갈아 {ItemPoolingRounds}라운드, 약 {ItemPoolingRounds * 2 * (ItemPoolingSettleSeconds + ItemPoolingSampleSeconds):F0}초. 카메라를 움직이지 말 것.");
+
+        void Finish(bool log)
+        {
+            EditorApplication.update -= Tick;
+            Factory.Rendering.BeltItemRenderer.ItemSlotPoolingEnabled = true;
+            if (log) Debug.Log(BuildItemPoolingReport(frames, loopNs, gcBytes, seconds, gcAlloc.Valid));
+            playerLoop.Dispose();
+            gcAlloc.Dispose();
+        }
+
+        void Tick()
+        {
+            if (!Application.isPlaying) { Finish(false); return; }
+
+            float now = Time.unscaledTime;
+            if (phase < 0 || now - phaseStart >= ItemPoolingSettleSeconds + ItemPoolingSampleSeconds)
+            {
+                phase++;
+                if (phase >= phases.Count) { Finish(true); return; }
+                Factory.Rendering.BeltItemRenderer.ItemSlotPoolingEnabled = phases[phase];
+                phaseStart = now;
+                return;
+            }
+
+            // 안정화 구간이 지난 뒤, 새 프레임마다 직전 프레임 값을 한 번씩 모은다.
+            if (now - phaseStart < ItemPoolingSettleSeconds || Time.frameCount == lastFrame) return;
+            lastFrame = Time.frameCount;
+            bool mode = phases[phase];
+            frames[mode]++;
+            loopNs[mode] += playerLoop.LastValue;
+            gcBytes[mode] += gcAlloc.LastValue;
+            seconds[mode] += Time.unscaledDeltaTime;
+        }
+
+        EditorApplication.update += Tick;
+    }
+
+    // 카테고리를 몰라도 되게, 등록된 통계 목록에서 이름으로 찾아 녹화를 시작한다.
+    private static Unity.Profiling.ProfilerRecorder StartRecorderByName(string name)
+    {
+        var handles = new List<Unity.Profiling.LowLevel.Unsafe.ProfilerRecorderHandle>();
+        Unity.Profiling.LowLevel.Unsafe.ProfilerRecorderHandle.GetAvailable(handles);
+        foreach (var handle in handles)
+        {
+            if (Unity.Profiling.LowLevel.Unsafe.ProfilerRecorderHandle.GetDescription(handle).Name != name) continue;
+            var recorder = new Unity.Profiling.ProfilerRecorder(handle);
+            recorder.Start();
+            return recorder;
+        }
+        return default;
+    }
+
+    private static string BuildItemPoolingReport(Dictionary<bool, long> frames, Dictionary<bool, double> loopNs,
+        Dictionary<bool, double> gcBytes, Dictionary<bool, double> seconds, bool gcValid)
+    {
+        int segments = 0, items = 0;
+        var driver = UnityEngine.Object.FindAnyObjectByType<SimulationDriver>();
+        if (driver != null && driver.World != null)
+        {
+            foreach (var s in driver.World.Segments) { if (s == null) continue; segments++; items += s.Items.Count; }
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"[ItemPoolBench] 결과 — 벨트 {segments}칸, 벨트 위 아이템 약 {items}개, 라운드 {ItemPoolingRounds}회 합산 평균");
+        foreach (bool pooling in new[] { false, true })
+        {
+            long n = frames[pooling];
+            if (n == 0) { sb.AppendLine($"  풀링 {(pooling ? "켬" : "끔")}: 측정 프레임 없음"); continue; }
+            string gc = gcValid ? $"{gcBytes[pooling] / n / 1024.0:F1} KB/프레임" : "측정 불가";
+            sb.AppendLine($"  풀링 {(pooling ? "켬" : "끔")}: PlayerLoop {loopNs[pooling] / n / 1e6:F2} ms, GC {gc}, " +
+                          $"FPS {n / seconds[pooling]:F1} ({n}프레임)");
+        }
+        sb.AppendLine("  (에디터 측정. FPS는 30 상한이 있어 PlayerLoop ms로 비교할 것. 화면 밖 벨트는 컬링돼 제외됨)");
+        return sb.ToString();
+    }
+
+    // 뷰포트 컬링(FactoryViewportCuller) 켬/끔 비교. 아이템 슬롯 풀링 벤치마크와 같은 방식 —
+    // 끔/켬을 번갈아 3라운드, 단계마다 2초 안정화 후 6초 측정, 새 프레임마다 직전 프레임 값을 모아 평균.
+    // 모든 값은 Profiler 기록기(PlayerLoop 등) 기준이라 에디터 창 비용(EditorLoop)이 빠지고,
+    // 실제 경과 시간(Time.deltaTime) 기반 수치는 쓰지 않는다. 화면 밖이 많을수록 차이가 드러나므로
+    // 기본 시점에서 줌인해 공장 대부분이 화면 밖인 상태로 돌린다.
+    private const string CullingMenuPath = "Tools/Factory/Debug/Benchmark Viewport Culling (3 rounds)";
+
+    [MenuItem(CullingMenuPath, true)]
+    private static bool ValidateCullingBenchmark() => Application.isPlaying;
+
+    [MenuItem(CullingMenuPath)]
+    private static void BenchmarkViewportCulling()
+    {
+        var culler = UnityEngine.Object.FindAnyObjectByType<Factory.Rendering.FactoryViewportCuller>();
+        var driver = UnityEngine.Object.FindAnyObjectByType<SimulationDriver>();
+        var beltTool = UnityEngine.Object.FindAnyObjectByType<Factory.Building.BeltDragTool>();
+        if (culler == null || driver == null || driver.World == null || beltTool == null)
+        {
+            Debug.LogError("[CullBench] FactoryViewportCuller가 있는 Main 씬 플레이 중에만 쓸 수 있다.");
+            return;
+        }
+
+        // 기록기를 못 찾은 항목은 결과에 "측정 불가"로 남긴다.
+        string[] names = { "PlayerLoop", "Update.ScriptRunBehaviourUpdate", "PreLateUpdate.ScriptRunBehaviourLateUpdate", "RenderPlayModeViewCameras" };
+        var recorders = new Unity.Profiling.ProfilerRecorder[names.Length];
+        for (int i = 0; i < names.Length; i++) recorders[i] = StartRecorderByName(names[i]);
+        var gcAlloc = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+        var batches = StartRecorderByName("Batches Count");
+        if (!recorders[0].Valid)
+        {
+            Debug.LogError("[CullBench] PlayerLoop 마커를 찾지 못해 측정할 수 없다.");
+            foreach (var r in recorders) r.Dispose();
+            gcAlloc.Dispose();
+            batches.Dispose();
+            return;
+        }
+
+        var phases = new List<bool>();
+        for (int i = 0; i < ItemPoolingRounds; i++) { phases.Add(false); phases.Add(true); }
+
+        var frames = new Dictionary<bool, long> { { false, 0 }, { true, 0 } };
+        var sums = new Dictionary<bool, double[]> { { false, new double[names.Length + 2] }, { true, new double[names.Length + 2] } };
+        var hidden = new Dictionary<bool, (long belts, long machines)> { { false, (0, 0) }, { true, (0, 0) } };
+        (int belts, int machines) totals = default;
+
+        int phase = -1;
+        float phaseStart = 0f;
+        int lastFrame = -1;
+        bool wasEnabled = culler.enabled;
+
+        Debug.Log($"[CullBench] 시작 — 끔/켬 번갈아 {ItemPoolingRounds}라운드, 약 {ItemPoolingRounds * 2 * (ItemPoolingSettleSeconds + ItemPoolingSampleSeconds):F0}초. 카메라를 움직이지 말 것.");
+
+        void Finish(bool log)
+        {
+            EditorApplication.update -= Tick;
+            culler.SetCullingEnabled(wasEnabled);
+            if (log) Debug.Log(BuildCullingReport(names, recorders, gcAlloc.Valid, batches.Valid, frames, sums, hidden, totals));
+            foreach (var r in recorders) r.Dispose();
+            gcAlloc.Dispose();
+            batches.Dispose();
+        }
+
+        void Tick()
+        {
+            if (!Application.isPlaying) { Finish(false); return; }
+
+            float now = Time.unscaledTime;
+            if (phase < 0 || now - phaseStart >= ItemPoolingSettleSeconds + ItemPoolingSampleSeconds)
+            {
+                phase++;
+                if (phase >= phases.Count) { Finish(true); return; }
+                culler.SetCullingEnabled(phases[phase]);
+                phaseStart = now;
+                return;
+            }
+
+            if (now - phaseStart < ItemPoolingSettleSeconds || Time.frameCount == lastFrame) return;
+            lastFrame = Time.frameCount;
+            bool mode = phases[phase];
+            frames[mode]++;
+            var s = sums[mode];
+            for (int i = 0; i < names.Length; i++) if (recorders[i].Valid) s[i] += recorders[i].LastValue;
+            s[names.Length] += gcAlloc.LastValue;
+            if (batches.Valid) s[names.Length + 1] += batches.LastValue;
+
+            var count = CountHiddenVisuals(driver.World, beltTool);
+            totals = (count.totalBelts, count.totalMachines);
+            hidden[mode] = (hidden[mode].belts + count.hiddenBelts, hidden[mode].machines + count.hiddenMachines);
+        }
+
+        EditorApplication.update += Tick;
+    }
+
+    // 지금 꺼져 있는(화면 밖이라 컬링된) 벨트/기계 비주얼 수. 코어는 레지스트리에 없어 집계에서 빠진다.
+    private static (int hiddenBelts, int totalBelts, int hiddenMachines, int totalMachines) CountHiddenVisuals(
+        SimulationWorld world, Factory.Building.BeltDragTool beltTool)
+    {
+        int hb = 0, tb = 0, hm = 0, tm = 0;
+        for (int i = 0; i < world.Segments.Count; i++)
+        {
+            if (world.Segments[i] == null || !beltTool.TryGetBeltVisual(i, out var go)) continue;
+            tb++;
+            if (!go.activeSelf) hb++;
+        }
+        for (int i = 0; i < world.Processors.Count; i++)
+        {
+            if (world.Processors[i] == null
+                || !Factory.Rendering.MachineVisualRegistry.TryGet(Factory.Buildings.MachineInstanceKind.Processor, i, out var go)) continue;
+            tm++;
+            if (!go.activeSelf) hm++;
+        }
+        for (int i = 0; i < world.Miners.Count; i++)
+        {
+            if (world.Miners[i] == null
+                || !Factory.Rendering.MachineVisualRegistry.TryGet(Factory.Buildings.MachineInstanceKind.Miner, i, out var go)) continue;
+            tm++;
+            if (!go.activeSelf) hm++;
+        }
+        return (hb, tb, hm, tm);
+    }
+
+    private static string BuildCullingReport(string[] names, Unity.Profiling.ProfilerRecorder[] recorders, bool gcValid, bool batchesValid,
+        Dictionary<bool, long> frames, Dictionary<bool, double[]> sums, Dictionary<bool, (long belts, long machines)> hidden,
+        (int belts, int machines) totals)
+    {
+        string[] labels = { "PlayerLoop", "Update 스크립트", "LateUpdate 스크립트", "렌더링(RenderPlayModeViewCameras)" };
+        var sb = new StringBuilder();
+        sb.AppendLine($"[CullBench] 결과 — 벨트 비주얼 {totals.belts}개, 기계 비주얼 {totals.machines}개, 라운드 {ItemPoolingRounds}회 합산 평균");
+        foreach (bool on in new[] { false, true })
+        {
+            long n = frames[on];
+            if (n == 0) { sb.AppendLine($"  컬링 {(on ? "켬" : "끔")}: 측정 프레임 없음"); continue; }
+            var s = sums[on];
+            var parts = new List<string>();
+            for (int i = 0; i < names.Length; i++)
+                parts.Add(recorders[i].Valid ? $"{labels[i]} {s[i] / n / 1e6:F2} ms" : $"{labels[i]} 측정 불가");
+            parts.Add(gcValid ? $"GC {s[names.Length] / n / 1024.0:F1} KB/프레임" : "GC 측정 불가");
+            parts.Add(batchesValid ? $"Batches {s[names.Length + 1] / n:F0}" : "Batches 측정 불가");
+            parts.Add($"화면 밖(꺼짐) 벨트 {hidden[on].belts / (double)n:F0}개·기계 {hidden[on].machines / (double)n:F0}개");
+            sb.AppendLine($"  컬링 {(on ? "켬" : "끔")} ({n}프레임): " + string.Join(", ", parts));
+        }
+        sb.AppendLine("  (에디터 측정. 전부 Profiler 기록기 값이라 EditorLoop 제외, 경과 시간 기반 수치 없음)");
+        return sb.ToString();
+    }
+
     private static void BackupExistingSave(PowerSaveManager saveManager)
     {
         if (!File.Exists(saveManager.SavePath)) return;

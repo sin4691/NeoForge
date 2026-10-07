@@ -124,6 +124,10 @@ namespace Factory.Building
         private readonly Dictionary<int, GameObject> beltVisualRoots = new Dictionary<int, GameObject>();
         private readonly Stack<GameObject> pooledBeltVisuals = new Stack<GameObject>();
 
+        // 성능 비교 전용 스위치(TestFactoryBuilder의 풀링 벤치마크 메뉴만 끈다). false면 반납 시
+        // 풀에 넣지 않고 바로 Destroy하고, 새 벨트도 항상 새로 만든다 — 풀링 도입 전 동작과 같다.
+        public static bool BeltVisualPoolingEnabled = true;
+
         // 에디터 SerializedObject 없이(런타임/테스트에서) 직접 배선할 때 쓴다.
         public void Initialize(Camera targetCamera, SimulationDriver driver)
         {

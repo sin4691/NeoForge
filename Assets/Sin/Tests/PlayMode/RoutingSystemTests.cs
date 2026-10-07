@@ -154,8 +154,12 @@ public class RoutingSystemTests
         core.InputBuffer[coalId] = 20;
 
         int splitterIndex = world.AddProcessor(new ProcessorInstance(db.ResourceCount) { RoutingRole = RoutingRole.Splitter });
-        var middle = new ProcessorInstance(db.ResourceCount) { RecipeId = ironRecipeId, RecipeSetSequence = ProcessorInstance.NextRecipeSetSequence() };
-        var side = new ProcessorInstance(db.ResourceCount) { RecipeId = coalRecipeId, RecipeSetSequence = ProcessorInstance.NextRecipeSetSequence() };
+        // 플레이어가 옆(석탄)에 먼저, 가운데(철)에 나중에 레시피를 지정한 상황 — "가장 최근에 레시피가
+        // 지정된 갈래 우선" 규칙상 철거 전엔 가운데가 우선이어야 철거 후 우선순위 이전을 검증할 수 있다.
+        int sideSequence = ProcessorInstance.NextRecipeSetSequence();
+        int middleSequence = ProcessorInstance.NextRecipeSetSequence();
+        var middle = new ProcessorInstance(db.ResourceCount) { RecipeId = ironRecipeId, RecipeSetSequence = middleSequence };
+        var side = new ProcessorInstance(db.ResourceCount) { RecipeId = coalRecipeId, RecipeSetSequence = sideSequence };
         int middleIndex = world.AddProcessor(middle);
         int sideIndex = world.AddProcessor(side);
 
