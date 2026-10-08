@@ -111,3 +111,9 @@ Assets/Docs/FormatExcel.ps1.meta
 Assets/Docs/게임_기획서.md.meta
 Assets/Docs/시뮬레이션_구조설계.md.meta
 Assets/Docs.meta
+
+# 외부 에셋 (라이선스상 공개 저장소에서 제외)
+/Assets/SCI-FI UI Pack Pro/
+/Assets/SCI-FI UI Pack Pro.meta
+/Assets/OZEA_STUDIO_ULTIMATE/
+/Assets/OZEA_STUDIO_ULTIMATE.meta
